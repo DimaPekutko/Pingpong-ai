@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <link rel="stylesheet" type="text/css" href="./assets/style.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <title>Document</title>
+</head>
+<body>
+    <video id="videoElement" autoplay="true"></video>
+    <canvas id="videoCanvas"></canvas>
+    <div class="debug_console">
+        <p id="debug_console_logs"></p>
+    </div>
+    <div class="main container">
+        <h1>PingPong<img id="main_logo" src="assets/images/pingpong.png" alt="">AI</h1>
+        <h2 id="name_hint_msg">Choose your name:</h2><br>
+        <input id="name_input" placeholder="Type your name..." type="text"><br><br>
+        <p id="name_input_hint"></p><br>
+        <button id="play_alone_btn">Play alone</button>
+        <button id="play_online_btn">Play online</button>
+        <p id="footer_info">dkefir03@gmail.com</p>
+    </div>
+    <div class="loading container">
+        <h1>PingPong<img id="main_logo" src="assets/images/pingpong.png" alt="">AI</h1><br><br>
+        <h2>Searching for the opponent...</h2>
+        <p id="footer_info">dkefir03@gmail.com</p>
+    </div>
+    <!-- <script src="https://unpkg.com/@tensorflow/tfjs-core@2.1.0/dist/tf-core.js"></script> -->
+    <!-- <script src="https://unpkg.com/@tensorflow/tfjs-converter@2.1.0/dist/tf-converter.js"></script> -->
+
+    <!-- You must explicitly require a TF.js backend if you're not using the tfs union bundle. -->
+    <!-- <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl@2.1.0/dist/tf-backend-webgl.js"></script>
+    <script src="./core/three.js"></script>
+    <script src="./core/gltfloader.js"></script>
+    <script src="main.js"></script> -->
+</body>
+</html>

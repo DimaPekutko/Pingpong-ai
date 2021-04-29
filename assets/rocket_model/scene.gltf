@@ -1,0 +1,502 @@
+{
+  "accessors": [
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        -0.16360116004943848,
+        6.193016529083252,
+        1.0584043264389038
+      ],
+      "min": [
+        -0.68659394979476929,
+        0,
+        -0.90489625930786133
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 2952,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        1,
+        1,
+        0.98834139108657837
+      ],
+      "min": [
+        -0.99991780519485474,
+        -1,
+        -0.98791950941085815
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.88434535264968872,
+        0.54640179872512817,
+        0.86768805980682373,
+        1
+      ],
+      "min": [
+        -0.85296005010604858,
+        -0.50090998411178589,
+        0.12412804365158081,
+        1
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.41229906678199768,
+        0.52134251594543457
+      ],
+      "min": [
+        0.062906011939048767,
+        0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 684,
+      "max": [
+        245
+      ],
+      "min": [
+        0
+      ],
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 5904,
+      "componentType": 5126,
+      "count": 720,
+      "max": [
+        0.32036840915679932,
+        15.441032409667969,
+        4.6342086791992188
+      ],
+      "min": [
+        -0.32036834955215454,
+        0,
+        -4.6342086791992188
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 14544,
+      "componentType": 5126,
+      "count": 720,
+      "max": [
+        1,
+        1,
+        0.99999964237213135
+      ],
+      "min": [
+        -1,
+        -1,
+        -0.99999123811721802
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 3936,
+      "componentType": 5126,
+      "count": 720,
+      "max": [
+        0.99892419576644897,
+        0.8863605260848999,
+        0.80688846111297607,
+        1
+      ],
+      "min": [
+        -0.26679834723472595,
+        -0.85819065570831299,
+        -0.96375387907028198,
+        1
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 1968,
+      "componentType": 5126,
+      "count": 720,
+      "max": [
+        0.931083083152771,
+        1
+      ],
+      "min": [
+        0,
+        0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 2736,
+      "componentType": 5125,
+      "count": 2352,
+      "max": [
+        719
+      ],
+      "min": [
+        0
+      ],
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 23184,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.68659394979476929,
+        6.193016529083252,
+        1.0584043264389038
+      ],
+      "min": [
+        0.16360121965408325,
+        0,
+        -0.90489625930786133
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 26136,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.99991780519485474,
+        1,
+        0.98808693885803223
+      ],
+      "min": [
+        -1,
+        -1,
+        -0.98834145069122314
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 15456,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.85296005010604858,
+        0.54640191793441772,
+        -0.12413106858730316,
+        1
+      ],
+      "min": [
+        -0.88434559106826782,
+        -0.50273680686950684,
+        -0.86768805980682373,
+        1
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 7728,
+      "componentType": 5126,
+      "count": 246,
+      "max": [
+        0.41229906678199768,
+        0.52134251594543457
+      ],
+      "min": [
+        0.062906011939048767,
+        0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 12144,
+      "componentType": 5125,
+      "count": 684,
+      "max": [
+        245
+      ],
+      "min": [
+        0
+      ],
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "RED2000 (https://sketchfab.com/RED2000)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/ping-pong-racket-2327548c9eb0483ebca8ddf7d6bd4633",
+      "title": "Ping Pong Racket"
+    },
+    "generator": "Sketchfab-8.78.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 14880,
+      "byteOffset": 0,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 9696,
+      "byteOffset": 14880,
+      "byteStride": 8,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 29088,
+      "byteOffset": 24576,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 19392,
+      "byteOffset": 53664,
+      "byteStride": 16,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 73056,
+      "uri": "scene.bin"
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/PingPong_Racket1_baseColor.png"
+    },
+    {
+      "uri": "textures/PingPong_Racket1_metallicRoughness.png"
+    },
+    {
+      "uri": "textures/PingPong_Racket1_normal.png"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "PingPong_Racket1",
+      "normalTexture": {
+        "index": 2,
+        "scale": 1,
+        "texCoord": 0
+      },
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "baseColorTexture": {
+          "index": 0,
+          "texCoord": 0
+        },
+        "metallicFactor": 0,
+        "metallicRoughnessTexture": {
+          "index": 1,
+          "texCoord": 0
+        },
+        "roughnessFactor": 1
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Handle_Half1_PingPong_Racket1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0,
+            "TANGENT": 2,
+            "TEXCOORD_0": 3
+          },
+          "indices": 4,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Racket_PingPong_Racket1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 6,
+            "POSITION": 5,
+            "TANGENT": 7,
+            "TEXCOORD_0": 8
+          },
+          "indices": 9,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "Handle_Half2_PingPong_Racket1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 11,
+            "POSITION": 10,
+            "TANGENT": 12,
+            "TEXCOORD_0": 13
+          },
+          "indices": 14,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "name": "RootNode (gltf orientation matrix)",
+      "rotation": [
+        -0.70710678118654746,
+        -0,
+        -0,
+        0.70710678118654757
+      ]
+    },
+    {
+      "children": [
+        2
+      ],
+      "name": "RootNode (model correction matrix)"
+    },
+    {
+      "children": [
+        3
+      ],
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "name": "PingPong Racket.fbx"
+    },
+    {
+      "children": [
+        4
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        5,
+        7,
+        9
+      ],
+      "name": "PingPong_Racket"
+    },
+    {
+      "children": [
+        6
+      ],
+      "name": "Handle_Half1"
+    },
+    {
+      "mesh": 0,
+      "name": "Handle_Half1_PingPong_Racket1_0"
+    },
+    {
+      "children": [
+        8
+      ],
+      "name": "Racket"
+    },
+    {
+      "mesh": 1,
+      "name": "Racket_PingPong_Racket1_0"
+    },
+    {
+      "children": [
+        10
+      ],
+      "name": "Handle_Half2"
+    },
+    {
+      "mesh": 2,
+      "name": "Handle_Half2_PingPong_Racket1_0"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "OSG_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    }
+  ]
+}
+
