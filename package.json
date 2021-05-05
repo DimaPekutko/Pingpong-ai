@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server/server.js && watchify core/index.js -o main.js",
-    "release": "node server/server.js"
+    "start": "browserify public/core/index.js -o public/main.js && node App.js",
+    "release": "node App.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,7 @@
     "@tensorflow/tfjs-backend-webgl": "2.1.0",
     "@tensorflow/tfjs-converter": "2.1.0",
     "@tensorflow/tfjs-core": "2.1.0",
+    "browserify": "^17.0.0",
     "express": "^4.17.1",
     "fingerpose": "0.0.2",
     "socket.io": "^4.0.1",

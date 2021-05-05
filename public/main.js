@@ -1,657 +1,4 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-const { softmax } = require("@tensorflow/tfjs-core");
-const webworkify = require('webworkify');
-let videoElement = document.querySelector("#videoElement");
-let videoCanvas = document.querySelector("#videoCanvas");
-// let model = new Model();
-
-module.exports = class App {
-    constructor() {
-        this.detectionModelWorker; 
-
-        this.currentState = {
-            gesturesHistory: [],
-            x: "",
-            y: "",
-            _lastPosX: "",
-            _lastPosY: "",
-            status: "waiting",
-            directInPercent: {
-                up: "",
-                right: "",
-                down: "",
-                left: ""
-            }
-        };
-
-        /* afkScore need to execute model mistake (sometimes it don't
-        recognise a hand). If afkScore is under 3, then person just took 
-        his hand away */
-        this.afkScore = 0;         
-    }
-    async load() {
-        this.userCamera = await this.loadCamera().then(async () => {
-            this.videoElement = videoElement;
-            this.videoElement.width = 240;
-            this.videoElement.height = 120;
-            this.ctxVideo = videoCanvas.getContext("2d");
-            this.detectionModelWorker = webworkify(require("./Model.js"));
-            this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
-            videoCanvas.style.display = "block";
-            this.changeCanvas();
-        });
-    }
-    async detectHand() {
-        const canvas = document.createElement("canvas");
-        canvas.width = this.videoElement.width;
-        canvas.height = this.videoElement.height;
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(this.videoElement, 0, 0, this.videoElement.width, this.videoElement.height);
-        const img = ctx.getImageData(0, 0, this.videoElement.width, this.videoElement.height);
-       
-        this.detectionModelWorker.postMessage(img);
-    }
-    async onDetect(event) {
-        let prediction = event.data;
-        if (prediction) {
-            this.afkScore = 0;
-            this.updateCurrentState(prediction);
-            this.drawPoint(prediction.landmarks[0][0], prediction.landmarks[0][1]);
-        } else {
-            //update current state for no hand case
-            this.afkScore++;
-            this.currentState.directInPercent = {
-                up: 0,
-                right: 0,
-                down: 0,
-                left: 0
-            };
-            if(this.afkScore > 3) {
-                this.gesturesHistory = [];
-                this.currentState._lastPosX = 0;
-                this.currentState._lastPosY = 0;
-                this.currentState.status = "no_hand";
-                // console.log("!no hand");
-            } 
-        }
-        this.detectHand();
-    }
-    getCurrentState(callback, speed) {
-        setInterval(() => {
-            callback(this.currentState);
-        }, speed);
-    }
-    async loadCamera() {
-        if (navigator.mediaDevices.getUserMedia) {
-            try {
-                videoElement.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
-            } catch (error) {
-                console.log("Camera is not loaded");
-            }
-        }
-    }
-    changeCanvas() {
-        videoCanvas.width = this.videoElement.clientWidth;
-        videoCanvas.height = this.videoElement.clientHeight;
-        console.log(videoCanvas);
-    }
-    drawPoint(x, y) {
-        this.ctxVideo.fillStyle = "#191935";
-        this.ctxVideo.fillRect(0,0,videoCanvas.width, videoCanvas.height);
-        this.ctxVideo.beginPath();
-        this.ctxVideo.arc(videoCanvas.width-x, y, 5, 0, 2 * Math.PI);
-
-        // Set line color
-        this.ctxVideo.fillStyle = "red";
-        this.ctxVideo.fill();
-    }
-    updateCurrentState(prediction) {
-        //update gesturesHistory and status
-        let cs = this.currentState;
-        if (cs.gesturesHistory.length) {
-            if (cs.gesturesHistory[cs.gesturesHistory.length - 1] != prediction.gestureName) {
-                this.currentState.gesturesHistory.push(prediction.gestureName);
-            }
-        } else {
-            this.currentState.gesturesHistory.push(prediction.gestureName);
-        }
-        if (prediction.gestureName == "Fist") {
-            this.currentState.status = "waiting";
-        } else {
-            this.currentState.status = "tracking";
-        }
-
-        this.currentState.x = prediction.landmarks[0][0];
-        this.currentState.y = prediction.landmarks[0][1];
-        //update _lastPosX, _lastPosY and directions
-        if (cs._lastPosX && cs._lastPosY) {
-            let
-                _lastX = cs._lastPosX,
-                _lastY = cs._lastPosY,
-                x = prediction.landmarks[0][0],
-                y = prediction.landmarks[0][1];
-            let xVector = x - _lastX;
-            let yVector = y - _lastY;
-            let horisontalPercent = (Math.abs(xVector) / this.videoElement.clientWidth) * 100;
-            let verticalPercent = (Math.abs(yVector) / this.videoElement.clientHeight) * 100;
-            if (xVector > 0) {
-                this.currentState.directInPercent.right = horisontalPercent;
-                this.currentState.directInPercent.left = 0;
-            } else {
-                this.currentState.directInPercent.left = horisontalPercent;
-                this.currentState.directInPercent.right = 0;
-            }
-            if (yVector > 0) {
-                this.currentState.directInPercent.down = verticalPercent;
-                this.currentState.directInPercent.up = 0;
-            } else {
-                this.currentState.directInPercent.up = verticalPercent;
-                this.currentState.directInPercent.down = 0;
-            }
-        }
-        this.currentState._lastPosX = prediction.landmarks[0][0];
-        this.currentState._lastPosY = prediction.landmarks[0][1];
-    }
-}
-},{"./Model.js":3,"@tensorflow/tfjs-core":14,"webworkify":25}],2:[function(require,module,exports){
-const {Finger, FingerCurl, FingerDirection, GestureDescription} = require('fingerpose');
-
-let FistGesture = new GestureDescription('Fist'); 
-
-module.exports.FistGesture = FistGesture;
-
-FistGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1);
-FistGesture.addCurl(Finger.Index, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Middle, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
-},{"fingerpose":15}],3:[function(require,module,exports){
-require('@tensorflow/tfjs-backend-webgl'); // handpose does not itself require a backend, so you must explicitly install one.
-require('@tensorflow/tfjs-converter');
-require('@tensorflow/tfjs-core');
-// tf.ENV.set("WEBGL_CPU_FORWARD", true)
-const handpose = require('@tensorflow-models/handpose');
-const fp = require('fingerpose');
-const {FistGesture} = require("./FistGesture");
-
-module.exports = async (self)=>{
-    
-    class Model {
-        constructor() {
-            this.handpose = handpose;
-            this.fp = fp;
-            this.GE = new fp.GestureEstimator([
-                // FistGesture,
-            ]);
-        }
-        async load() {
-            return new Promise(async (resolve, reject)=>{
-                this.model = await this.handpose.load();                
-                resolve();
-            });
-        }
-        async detectGesture(video) {
-            let returnData = {
-                landmarks: "",
-                gestureName: "",
-                gestureConfigence: ""
-            };
-            let positionPrediction = await this.model.estimateHands(video);
-            if(positionPrediction.length) {
-                let gesturePrediction = await this.GE.estimate(positionPrediction[0].landmarks, 7.5);
-                returnData.landmarks = positionPrediction[0].landmarks;
-                if(gesturePrediction.gestures.length) {
-                    returnData.gestureName = gesturePrediction.gestures[0].name;
-                    returnData.gestureConfigence = gesturePrediction.gestures[0].confidence;
-                } else {
-                    returnData.gestureName = "JustHand";
-                    returnData.gestureConfigence = 0;
-                }
-                return returnData;  
-            } 
-            return 0;
-        }
-    }
-
-    const model = new Model();
-    await model.load();
-    self.postMessage(0); // this is need to start detection loop in App.js file
-
-    self.addEventListener("message", async (event)=>{
-        let prediction = await model.detectGesture(event.data);
-        self.postMessage(prediction);
-    });
-}
-},{"./FistGesture":2,"@tensorflow-models/handpose":8,"@tensorflow/tfjs-backend-webgl":12,"@tensorflow/tfjs-converter":13,"@tensorflow/tfjs-core":14,"fingerpose":15}],4:[function(require,module,exports){
-const HandRecognition = require("../detection/App");
-const Stats = require("stats.js");
-
-module.exports = class Game {
-    constructor() {
-        this._debugConsoleLogs = document.getElementById("debug_console_logs");
-
-        this._handDetector = new HandRecognition();
-
-        this._fpsCounter = new Stats();
-        this._fpsCounter.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
-        document.body.appendChild(this._fpsCounter.dom);
-
-        this._scene = new THREE.Scene();
-        this._camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this._renderer = new THREE.WebGLRenderer();
-        this._tableMaterial = new THREE.MeshBasicMaterial({ color: "#5282fa", wireframe: false });
-        this._gridMaterial = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6 });
-        this._ballMaterial = new THREE.MeshBasicMaterial({ color: "#ffffff" });
-        this._geometry = new THREE.BoxGeometry();
-        this._ballGeometry = new THREE.SphereGeometry(1, 128, 128);
-        this._table = new THREE.Mesh(this._geometry, this._tableMaterial);
-        this._tableGrid = new THREE.Mesh(this._geometry, this._gridMaterial);
-        this._ball = new THREE.Mesh(this._ballGeometry, this._ballMaterial);
-        this._sceneLight1 = new THREE.PointLight( "#fff", 10, 100 );
-        this._sceneLight2 = new THREE.PointLight( "#fff", 10, 100 );
-        this._sceneLight3 = new THREE.PointLight( "#fff", 10, 100 );
-        this._sceneLight4 = new THREE.PointLight( "#fff", 10, 100 );
-        this._edges = new THREE.EdgesGeometry(this._geometry);
-        this._edgesLine = new THREE.LineSegments(this._edges, new THREE.LineBasicMaterial({ color: "#ffffff" }));
-        this._gltfLoader = new THREE.GLTFLoader();
-        this._audioListener = new THREE.AudioListener();
-        this._tableSound = new THREE.Audio(this._audioListener);
-        this._audioLoader = new THREE.AudioLoader();
-    
-        this._renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(this._renderer.domElement);
-
-        this._renderer.setClearColor( "black", 1 );
-
-        this._camera.position.x = 0;
-        this._camera.position.y = 5;
-        this._camera.position.z = 25;
-
-        // this._camera.position.x = 25;
-        // this._camera.position.y = 3;
-        // this._camera.position.z = 0;
-        // this._camera.rotateY(1.5);
-              
-        this._sceneLight1.position.set( -50, 5, 0 );
-        this._sceneLight2.position.set( 50, 5, 0 );
-        this._sceneLight3.position.set( 0, 5, -this._table.scale.z/2-20);
-        this._sceneLight4.position.set(0, 5, this._table.scale.z/2+20);
-        
-        this._table.scale.set(15.2, 0.3, 27.4);
-        this._table.position.x = 0;
-        this._table.position.y = 0;
-        this._table.position.z = 0;
-
-        this._edgesLine.scale.set(15.2, 0.3, 27.4);
-
-        this._tableGrid.scale.set(15.2, 4, 0.5);
-        this._tableGrid.position.set(0, 0, 0);
-
-        this._ball.position.x = 0;
-        this._ball.position.y = 10;
-        this._ball.position.z = 0;
-        this._ball.scale.set(0.3, 0.3, 0.3);
-
-        this._rocketOpacity = 0.5;
-
-        this._scene.add(this._sceneLight1);
-        this._scene.add(this._sceneLight2);
-        this._scene.add(this._sceneLight3);
-        this._scene.add(this._sceneLight4);
-        this._scene.add(this._edgesLine);
-        this._scene.add(this._table);
-        this._scene.add(this._tableGrid);
-        this._scene.add(this._ball);
-
-        this._gravNormalSpeedZ = 0.5;
-        this._gravSpeedZ = 0.5;
-        this._gravSpeedX = 0.1;
-        this._gravSpeedY = 0.01;
-        this._gravDY = 0.01;
-        this._gravMaxGravity = 10;
-        this._gravMaxJumpHeight = 5;
-
-        this._rocketXOffset = 0;
-        this._rocketYOffset = 0;
-        this._lastMouseX = 0;
-        this._lastMouseY = 0;
-
-        this._lastHandCoords = null;
-        this._rocketAnimationAimCoords = null;
-
-        this._GESTURE_MODE = false;
-        this._PLAYER_ROLE = null;
-        this._GAME_START = false;
-        this._CURRENT_SCORE = [0,0];
-    }
-    _addLogMessage(message) {
-        this._debugConsoleLogs.innerHTML += ("<br>"+message);
-    }
-    _loadRocket1(path) {
-        return new Promise((resolve)=>{
-            this._gltfLoader.load(path, (gltf)=>{
-                this._pl1Rocket = gltf.scene;
-                this._pl1Rocket.traverse((node)=>{
-                    if (node.isMesh) {
-                        node.material.transparent = true;
-                        node.material.opacity = this._rocketOpacity;
-                        this._scene.add(this._pl1Rocket);
-                        resolve();
-                    }
-                });
-            });
-        });
-    } 
-    _loadRocket2(path) {
-        return new Promise((resolve)=>{
-            this._gltfLoader.load(path, (gltf)=>{
-                this._pl2Rocket = gltf.scene;
-                this._pl2Rocket.traverse((node)=>{
-                    if (node.isMesh) {
-                        node.material.transparent = true;
-                        node.material.opacity = this._rocketOpacity;
-                        this._scene.add(this._pl2Rocket);
-                        resolve();
-                    }
-                });
-            });
-        });
-    }
-    _loadTableSound(path) {
-        return new Promise((resolve)=>{
-            this._audioLoader.load(path, (buffer)=>{
-                this._tableSound.setBuffer(buffer);
-                this._tableSound.setLoop(false);
-                this._tableSound.setVolume(0.5);
-                resolve();
-            });
-        });
-    }
-    _rocketMoveAnimation() {
-        let speedX = 0.05;
-        let speedY = 0.05;
-        if(this._rocketAnimationAimCoords[0] < this._pl1Rocket.position.x) 
-            speedX *= -1;
-        if(this._rocketAnimationAimCoords[1] < this._pl1Rocket.position.x)
-            speedY *= -1;
-        
-        this._pl1Rocket.position.x += speedX;
-        this._pl1Rocket.position.y += speedY;
-        
-        // requestAnimationFrame(this._rocketMoveAnimation.bind(this));
-        // this._rocketMoveAnimation();
-    }
-    _getHandPrediction(event) {
-        // console.log(event);
-        let handX = event.x;
-        let handY = event.y;
-        if(handX || handY) {
-            // console.log(handX);
-            let s = 10;
-            if(this._lastHandCoords != null) {
-                this._rocketXOffset = -(handX-this._lastHandCoords[0])/s;
-                // this._rocketYOffset = -(handY-this._lastHandCoords[1])/s;
-                if(Math.abs(this._rocketXOffset) < 0.1) {
-                    this._rocketXOffset = 0;
-                }
-                // if(Math.abs(this._rocketYOffset) < 0.1) {
-                //     this._rocketYOffset = 0;
-                // }
-                this._rocketAnimationAimCoords =
-                    [
-                        this._pl1Rocket.position.x+this._rocketXOffset,
-                        // this._pl1Rocket.position.y+this._rocketYOffset
-                    ];
-                // this._rocketMoveAnimation();
-            }
-        }
-        else { return; }
-        this._lastHandCoords = [handX, handY];        
-    }
-    _mousemove(event) {
-        if(this._GESTURE_MODE) return; 
-        let 
-            x = event.clientX,
-            y = event.clientY;
-        if(!this._lastMouseX && !this._lastMouseY) {
-            this._lastMouseX = x;
-            // this._lastMouseY = y;
-            return;
-        }
-        this._rocketXOffset = -(this._lastMouseX-x)/10;
-        // this._rocketYOffset = (this._lastMouseY-y)/10;
-        this._lastMouseX = x;
-        // this._lastMouseY = y;
-    }
-    _mousedown(event) {
-        if(this._GESTURE_MODE) return;
-        if(!this._GAME_START) {
-            this._GAME_START = true;
-        }
-    }
-    _updateRockets() {
-        if(this._GESTURE_MODE) {
-
-        }
-        else {
-            if(this._PLAYER_ROLE == 1 && !this._GAME_START) {
-                // this._ball.position.set
-                //     (
-                //         this._pl1Rocket.position.x,
-                //         this._pl1Rocket.position.y+3,
-                //         this._pl1Rocket.position.z
-                //     )
-            }
-            this._pl1Rocket.position.x += this._rocketXOffset;
-            this._pl1Rocket.position.y += this._rocketYOffset;
-            this._pl2Rocket.position.x += this._rocketXOffset;
-            this._pl2Rocket.position.y += this._rocketYOffset;
-            this._rocketXOffset = 0;
-            this._rocketYOffset = 0;
-        }
-    }
-    _gravity() {
-        if(!this._GAME_START) return;
-        this._ball.position.z += this._gravSpeedZ ;
-            if (this._ball.position.z > this._table.scale.z / 2) {
-                // this._gravSpeedZ = this._gravNormalSpeedZ;
-            }
-            if(this._ball.position.z < -(this._table.scale.z / 2)) {
-                // this._gravSpeedZ = -this._gravNormalSpeedZ;
-            }
-            if(this._ball.position.y >= this._gravMaxJumpHeight) {
-                // dy = -dy;
-            }
-            this._gravDY += this._gravSpeedY;
-            this._ball.position.y -= this._gravDY;
-            if(this._gravSpeedZ < 0) {
-                if(this._ball.position.z > 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
-            else {
-                if(this._ball.position.z < 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
-            if(this._ball.position.y <= this._ball.scale.x*2) {
-                this._ball.position.y = this._ball.scale.x*2;
-                this._gravDY = -(this._gravDY);
-            }
-    }
-    _checkBallCollisions() {
-        let ballX = this._ball.position.x;
-        let ballY = this._ball.position.y;
-        let ballZ = this._ball.position.z;
-
-        // checking collision for the player 1 rocket
-        if(ballZ >= this._table.scale.z/2 && ballZ <= this._table.scale.z/2+this._ball.scale.z) {
-            let leftRocketCorner = this._pl1Rocket.position.x-this._pl1Rocket.scale.x*4;
-            let rightRocketCorner = this._pl1Rocket.position.x+this._pl1Rocket.scale.x*4;
-            if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
-                this._gravSpeedZ *= -1;
-                if(this._gravDY > 0) 
-                    this._gravDY = -this._gravDY; 
-            }
-            else {
-                this._gravDY += this._gravSpeedY;
-            }
-        }
-
-        // checking collision for the player 1 rocket
-        if(ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
-            let leftRocketCorner = this._pl1Rocket.position.x-this._pl2Rocket.scale.x*4;
-            let rightRocketCorner = this._pl1Rocket.position.x+this._pl2Rocket.scale.x*4;
-            if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
-                this._gravSpeedZ *= -1;
-                if(this._gravDY > 0) 
-                    this._gravDY = -this._gravDY; 
-            }
-            else {
-                this._gravDY += this._gravSpeedY;
-            }
-        }
-    }
-    _setPlayerRole() {
-        this._PLAYER_ROLE = 1;
-    }
-    async _getPlayerReady() {
-        return new Promise((resolve)=>{
-            const cnv = 
-                document.getElementById("videoCanvas");
-            let oldWidh = cnv.clientWidth, oldheight = cnv.cHeight;
-            // resolve();
-        });
-    }
-    _render() {
-        this._fpsCounter.begin();
-
-        this._updateRockets();
-        this._gravity();
-        this._checkBallCollisions();
-
-        this._fpsCounter.end();
-
-        requestAnimationFrame(this._render.bind(this));
-        this._renderer.render(this._scene, this._camera);
-    }
-    async load(callback) {
-        this._setPlayerRole();
-
-        // this._handDetector.load();
-        this._addLogMessage("Hand detection loaded.");
-        // this._handDetector.getCurrentState(
-            // this._getHandPrediction.bind(this), 1000/60);
-
-        await this._loadRocket1("./assets/rocket_model/scene.gltf");
-        await this._loadRocket2("./assets/rocket_model/scene.gltf");
-        this._addLogMessage("Rockets loaded.");
-        await this._loadTableSound("./assets/table_sound/table_sound.mp3");
-        this._addLogMessage("Table loaded.");
- 
-        // await this._getPlayerReady();
-        console.log("ok");
-        this._pl1Rocket.scale.set(1/4,1/4,1/4);
-        this._pl1Rocket.position.set(0, 2, this._table.scale.z/2);
-        this._pl1Rocket.rotateY(1.5);
-        this._pl2Rocket.scale.set(1/4,1/4,1/4);
-        this._pl2Rocket.position.set(0, 2, -this._table.scale.z/2);
-        this._pl2Rocket.rotateY(-1.5);
-
-        // if(this._PLAYER_ROLE == 1) 
-        //     this._ball.position.set(0,5,this._table.scale.z/2);
-        // else if(this._PLAYER_ROLE == 2) 
-        //     this._ball.position.set(0,5,-this._table.scale.z/2);
-        this._ball.scale.set(0.3, 0.3, 0.3);
-
-        this._render();
-        document.addEventListener('mousemove', this._mousemove.bind(this));
-        document.addEventListener("mousedown", this._mousedown.bind(this));        
-        callback();
-    }
-}
-},{"../detection/App":1,"stats.js":24}],5:[function(require,module,exports){
-document.addEventListener('DOMContentLoaded', ()=>{
-    const Game = require("./game/Game");
-    // app.load().then(()=>{
-    //     app.getCurrentState((data)=>{
-    //         console.log(data.directInPercent);
-    //     }, 10);
-    // });    
-    const mainContainer = document.getElementsByClassName("main")[0];
-    const loadingContainer = document.getElementsByClassName("loading")[0];
-    const startNameInput = document.getElementById("name_input");
-    startNameInput.focus();
-    const startNameInputHint = document.getElementById("name_input_hint");
-    const playAloneBtn = document.getElementById("play_alone_btn");
-    const playOnlineBtn = document.getElementById("play_online_btn");
-    const minNameLength = 5;
-    let isNameSelected = false;
-
-
-    const swapContainer = (past, next, speed, callback)=> {
-        past.style.opacity = 1;
-        if(next)  
-            next.style.opacity = 0;
-        let hideAnimation = setInterval(()=>{
-            past.style.opacity -= 0.05;
-            console.log("dwa");
-            if(past.style.opacity <= 0 ) {
-                clearInterval(hideAnimation);
-                past.style.display = "none";
-                if(next) {
-                    next.style.display = "block";
-                    next.style.opacity = 1;
-                    callback();
-                }
-                callback();
-            }
-        }, speed);
-    }
-
-    startNameInput.addEventListener("input", (event)=>{
-        let currentText = startNameInput.value;
-        currentText = currentText.replace(/</g, "").replace(/>/g, "")
-        startNameInput.value = currentText;
-        if(currentText.length < minNameLength) {
-            startNameInputHint.innerHTML = "Name is to small!"
-            startNameInputHint.classList.add("fail_msg");
-            startNameInputHint.classList.remove("success_msg");
-            isNameSelected = false;
-        }
-        else {
-            startNameInputHint.innerHTML = "Perfect Name"
-            startNameInputHint.classList.add("success_msg");
-            startNameInputHint.classList.remove("fail_msg");
-            isNameSelected = true;
-        }
-    });
-
-    playAloneBtn.addEventListener("click", (event)=> {
-        playAloneBtn.disabled = true;
-        swapContainer(mainContainer, null, 20, ()=>{
-            const game = new Game();
-            game.load(()=>{
-                console.log("loaded");
-            });
-        });
-    });
-
-    playOnlineBtn.addEventListener("click", (event)=> {
-        if(isNameSelected) {
-            playOnlineBtn.disabled = true;
-            swapContainer(mainContainer, loadingContainer, 20, ()=>{
-                
-            });
-        }
-        else {
-            startNameInputHint.innerHTML = "Choose correct name to play ONLINE!"
-            startNameInputHint.classList.add("fail_msg");
-            startNameInputHint.classList.remove("success_msg");
-        }
-    });
-});
-},{"./game/Game":4}],6:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -736,7 +83,7 @@ function shiftBox(box, shiftFactor) {
 }
 exports.shiftBox = shiftBox;
 
-},{"@tensorflow/tfjs-core":14}],7:[function(require,module,exports){
+},{"@tensorflow/tfjs-core":9}],2:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -913,7 +260,7 @@ var HandDetector = /** @class */ (function () {
 }());
 exports.HandDetector = HandDetector;
 
-},{"./box":6,"@tensorflow/tfjs-core":14}],8:[function(require,module,exports){
+},{"./box":1,"@tensorflow/tfjs-core":9}],3:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -1118,7 +465,7 @@ var HandPose = /** @class */ (function () {
 }());
 exports.HandPose = HandPose;
 
-},{"./hand":7,"./keypoints":9,"./pipeline":10,"@tensorflow/tfjs-converter":13,"@tensorflow/tfjs-core":14}],9:[function(require,module,exports){
+},{"./hand":2,"./keypoints":4,"./pipeline":5,"@tensorflow/tfjs-converter":8,"@tensorflow/tfjs-core":9}],4:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -1146,7 +493,7 @@ exports.MESH_ANNOTATIONS = {
     palmBase: [0]
 };
 
-},{}],10:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -1407,7 +754,7 @@ var HandPipeline = /** @class */ (function () {
 }());
 exports.HandPipeline = HandPipeline;
 
-},{"./box":6,"./util":11,"@tensorflow/tfjs-core":14}],11:[function(require,module,exports){
+},{"./box":1,"./util":6,"@tensorflow/tfjs-core":9}],6:[function(require,module,exports){
 "use strict";
 /**
  * @license
@@ -1497,7 +844,7 @@ function rotatePoint(homogeneousCoordinate, rotationMatrix) {
 }
 exports.rotatePoint = rotatePoint;
 
-},{}],12:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /**
  * @license
  * Copyright 2020 Google LLC. All Rights Reserved.
@@ -10757,7 +10104,7 @@ exports.webgl = webgl;
 exports.webgl_util = webgl_util;
 
 
-},{"@tensorflow/tfjs-core":14,"seedrandom":16}],13:[function(require,module,exports){
+},{"@tensorflow/tfjs-core":9,"seedrandom":16}],8:[function(require,module,exports){
 (function (Buffer){(function (){
 /**
  * @license
@@ -17788,7 +17135,7 @@ exports.version_converter = version;
 
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"@tensorflow/tfjs-core":14,"buffer":28}],14:[function(require,module,exports){
+},{"@tensorflow/tfjs-core":9,"buffer":12}],9:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,setImmediate){(function (){
 /**
  * @license
@@ -50270,1048 +49617,7 @@ exports.zerosLike = zerosLike;
 
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],require("timers").setImmediate)
-},{"_process":30,"buffer":28,"crypto":27,"node-fetch":27,"timers":31,"util":27}],15:[function(require,module,exports){
-!function(t,e){"object"==typeof exports&&"object"==typeof module?module.exports=e():"function"==typeof define&&define.amd?define([],e):"object"==typeof exports?exports.fp=e():t.fp=e()}("undefined"!=typeof self?self:this,(function(){return function(t){var e={};function n(r){if(e[r])return e[r].exports;var i=e[r]={i:r,l:!1,exports:{}};return t[r].call(i.exports,i,i.exports,n),i.l=!0,i.exports}return n.m=t,n.c=e,n.d=function(t,e,r){n.o(t,e)||Object.defineProperty(t,e,{enumerable:!0,get:r})},n.r=function(t){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})},n.t=function(t,e){if(1&e&&(t=n(t)),8&e)return t;if(4&e&&"object"==typeof t&&t&&t.__esModule)return t;var r=Object.create(null);if(n.r(r),Object.defineProperty(r,"default",{enumerable:!0,value:t}),2&e&&"string"!=typeof t)for(var i in t)n.d(r,i,function(e){return t[e]}.bind(null,i));return r},n.n=function(t){var e=t&&t.__esModule?function(){return t.default}:function(){return t};return n.d(e,"a",e),e},n.o=function(t,e){return Object.prototype.hasOwnProperty.call(t,e)},n.p="",n(n.s=0)}([function(t,e,n){"use strict";n.r(e);var r={};function i(t){return(i="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t})(t)}n.r(r),n.d(r,"VictoryGesture",(function(){return C})),n.d(r,"ThumbsUpGesture",(function(){return j}));var o={Thumb:0,Index:1,Middle:2,Ring:3,Pinky:4,all:[0,1,2,3,4],nameMapping:{0:"Thumb",1:"Index",2:"Middle",3:"Ring",4:"Pinky"},pointsMapping:{0:[[0,1],[1,2],[2,3],[3,4]],1:[[0,5],[5,6],[6,7],[7,8]],2:[[0,9],[9,10],[10,11],[11,12]],3:[[0,13],[13,14],[14,15],[15,16]],4:[[0,17],[17,18],[18,19],[19,20]]},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]},getPoints:function(t){return void 0!==i(this.pointsMapping[t])&&this.pointsMapping[t]}},a={NoCurl:0,HalfCurl:1,FullCurl:2,nameMapping:{0:"No Curl",1:"Half Curl",2:"Full Curl"},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]}},l={VerticalUp:0,VerticalDown:1,HorizontalLeft:2,HorizontalRight:3,DiagonalUpRight:4,DiagonalUpLeft:5,DiagonalDownRight:6,DiagonalDownLeft:7,nameMapping:{0:"Vertical Up",1:"Vertical Down",2:"Horizontal Left",3:"Horizontal Right",4:"Diagonal Up Right",5:"Diagonal Up Left",6:"Diagonal Down Right",7:"Diagonal Down Left"},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]}};function u(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=function(t,e){if(!t)return;if("string"==typeof t)return c(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);"Object"===n&&t.constructor&&(n=t.constructor.name);if("Map"===n||"Set"===n)return Array.from(n);if("Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n))return c(t,e)}(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function c(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function f(t,e){var n=Object.keys(t);if(Object.getOwnPropertySymbols){var r=Object.getOwnPropertySymbols(t);e&&(r=r.filter((function(e){return Object.getOwnPropertyDescriptor(t,e).enumerable}))),n.push.apply(n,r)}return n}function s(t,e,n){return e in t?Object.defineProperty(t,e,{value:n,enumerable:!0,configurable:!0,writable:!0}):t[e]=n,t}function h(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var d=function(){function t(e){!function(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}(this,t),this.options=function(t){for(var e=1;e<arguments.length;e++){var n=null!=arguments[e]?arguments[e]:{};e%2?f(Object(n),!0).forEach((function(e){s(t,e,n[e])})):Object.getOwnPropertyDescriptors?Object.defineProperties(t,Object.getOwnPropertyDescriptors(n)):f(Object(n)).forEach((function(e){Object.defineProperty(t,e,Object.getOwnPropertyDescriptor(n,e))}))}return t}({},{HALF_CURL_START_LIMIT:60,NO_CURL_START_LIMIT:130,DISTANCE_VOTE_POWER:1.1,SINGLE_ANGLE_VOTE_POWER:.9,TOTAL_ANGLE_VOTE_POWER:1.6},{},e)}var e,n,r;return e=t,(n=[{key:"estimate",value:function(t){var e,n=[],r=[],i=u(o.all);try{for(i.s();!(e=i.n()).done;){var a,l=e.value,c=o.getPoints(l),f=[],s=[],h=u(c);try{for(h.s();!(a=h.n()).done;){var d=a.value,p=t[d[0]],y=t[d[1]],g=this.getSlopes(p,y),v=g[0],m=g[1];f.push(v),s.push(m)}}catch(t){h.e(t)}finally{h.f()}n.push(f),r.push(s)}}catch(t){i.e(t)}finally{i.f()}var b,D=[],w=[],O=u(o.all);try{for(O.s();!(b=O.n()).done;){var M=b.value,S=M==o.Thumb?1:0,T=o.getPoints(M),C=t[T[S][0]],R=t[T[S+1][1]],A=t[T[3][1]],L=this.estimateFingerCurl(C,R,A),_=this.calculateFingerDirection(C,R,A,n[M].slice(S));D[M]=L,w[M]=_}}catch(t){O.e(t)}finally{O.f()}return{curls:D,directions:w}}},{key:"getSlopes",value:function(t,e){var n=this.calculateSlope(t[0],t[1],e[0],e[1]);return 2==t.length?n:[n,this.calculateSlope(t[1],t[2],e[1],e[2])]}},{key:"angleOrientationAt",value:function(t){var e=arguments.length>1&&void 0!==arguments[1]?arguments[1]:1,n=0,r=0,i=0;return t>=75&&t<=105?n=1*e:t>=25&&t<=155?r=1*e:i=1*e,[n,r,i]}},{key:"estimateFingerCurl",value:function(t,e,n){var r=t[0]-e[0],i=t[0]-n[0],o=e[0]-n[0],l=t[1]-e[1],u=t[1]-n[1],c=e[1]-n[1],f=t[2]-e[2],s=t[2]-n[2],h=e[2]-n[2],d=Math.sqrt(r*r+l*l+f*f),p=Math.sqrt(i*i+u*u+s*s),y=Math.sqrt(o*o+c*c+h*h),g=(y*y+d*d-p*p)/(2*y*d);g>1?g=1:g<-1&&(g=-1);var v=Math.acos(g);return(v=57.2958*v%180)>this.options.NO_CURL_START_LIMIT?a.NoCurl:v>this.options.HALF_CURL_START_LIMIT?a.HalfCurl:a.FullCurl}},{key:"estimateHorizontalDirection",value:function(t,e,n,r){return r==Math.abs(t)?t>0?l.HorizontalLeft:l.HorizontalRight:r==Math.abs(e)?e>0?l.HorizontalLeft:l.HorizontalRight:n>0?l.HorizontalLeft:l.HorizontalRight}},{key:"estimateVerticalDirection",value:function(t,e,n,r){return r==Math.abs(t)?t<0?l.VerticalDown:l.VerticalUp:r==Math.abs(e)?e<0?l.VerticalDown:l.VerticalUp:n<0?l.VerticalDown:l.VerticalUp}},{key:"estimateDiagonalDirection",value:function(t,e,n,r,i,o,a,u){var c=this.estimateVerticalDirection(t,e,n,r),f=this.estimateHorizontalDirection(i,o,a,u);return c==l.VerticalUp?f==l.HorizontalLeft?l.DiagonalUpLeft:l.DiagonalUpRight:f==l.HorizontalLeft?l.DiagonalDownLeft:l.DiagonalDownRight}},{key:"calculateFingerDirection",value:function(t,e,n,r){var i=t[0]-e[0],o=t[0]-n[0],a=e[0]-n[0],l=t[1]-e[1],c=t[1]-n[1],f=e[1]-n[1],s=Math.max(Math.abs(i),Math.abs(o),Math.abs(a)),h=Math.max(Math.abs(l),Math.abs(c),Math.abs(f)),d=0,p=0,y=0,g=h/(s+1e-5);g>1.5?d+=this.options.DISTANCE_VOTE_POWER:g>.66?p+=this.options.DISTANCE_VOTE_POWER:y+=this.options.DISTANCE_VOTE_POWER;var v=Math.sqrt(i*i+l*l),m=Math.sqrt(o*o+c*c),b=Math.sqrt(a*a+f*f),D=Math.max(v,m,b),w=t[0],O=t[1],M=n[0],S=n[1];D==v?(M=n[0],S=n[1]):D==b&&(w=e[0],O=e[1]);var T=[w,O],C=[M,S],R=this.getSlopes(T,C),A=this.angleOrientationAt(R,this.options.TOTAL_ANGLE_VOTE_POWER);d+=A[0],p+=A[1],y+=A[2];var L,_=u(r);try{for(_.s();!(L=_.n()).done;){var j=L.value,E=this.angleOrientationAt(j,this.options.SINGLE_ANGLE_VOTE_POWER);d+=E[0],p+=E[1],y+=E[2]}}catch(t){_.e(t)}finally{_.f()}return d==Math.max(d,p,y)?this.estimateVerticalDirection(c,l,f,h):y==Math.max(p,y)?this.estimateHorizontalDirection(o,i,a,s):this.estimateDiagonalDirection(c,l,f,h,o,i,a,s)}},{key:"calculateSlope",value:function(t,e,n,r){var i=(e-r)/(t-n),o=180*Math.atan(i)/Math.PI;return o<=0?o=-o:o>0&&(o=180-o),o}}])&&h(e.prototype,n),r&&h(e,r),t}();function p(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=function(t,e){if(!t)return;if("string"==typeof t)return y(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);"Object"===n&&t.constructor&&(n=t.constructor.name);if("Map"===n||"Set"===n)return Array.from(n);if("Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n))return y(t,e)}(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function y(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function g(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}function v(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var m=function(){function t(e){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{};g(this,t),this.estimator=new d(n),this.gestures=e}var e,n,r;return e=t,(n=[{key:"estimate",value:function(t,e){var n,r=[],i=this.estimator.estimate(t),u=[],c=p(o.all);try{for(c.s();!(n=c.n()).done;){var f=n.value;u.push([o.getName(f),a.getName(i.curls[f]),l.getName(i.directions[f])])}}catch(t){c.e(t)}finally{c.f()}var s,h=p(this.gestures);try{for(h.s();!(s=h.n()).done;){var d=s.value,y=d.matchAgainst(i.curls,i.directions);y>=e&&r.push({name:d.name,confidence:y})}}catch(t){h.e(t)}finally{h.f()}return{poseData:u,gestures:r}}}])&&v(e.prototype,n),r&&v(e,r),t}();function b(t,e){return function(t){if(Array.isArray(t))return t}(t)||function(t,e){if("undefined"==typeof Symbol||!(Symbol.iterator in Object(t)))return;var n=[],r=!0,i=!1,o=void 0;try{for(var a,l=t[Symbol.iterator]();!(r=(a=l.next()).done)&&(n.push(a.value),!e||n.length!==e);r=!0);}catch(t){i=!0,o=t}finally{try{r||null==l.return||l.return()}finally{if(i)throw o}}return n}(t,e)||w(t,e)||function(){throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()}function D(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=w(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function w(t,e){if(t){if("string"==typeof t)return O(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);return"Object"===n&&t.constructor&&(n=t.constructor.name),"Map"===n||"Set"===n?Array.from(n):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?O(t,e):void 0}}function O(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function M(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var S=function(){function t(e){!function(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}(this,t),this.name=e,this.curls={},this.directions={},this.weights=[1,1,1,1,1],this.weightsRelative=[1,1,1,1,1]}var e,n,r;return e=t,(n=[{key:"addCurl",value:function(t,e,n){void 0===this.curls[t]&&(this.curls[t]=[]),this.curls[t].push([e,n])}},{key:"addDirection",value:function(t,e,n){void 0===this.directions[t]&&(this.directions[t]=[]),this.directions[t].push([e,n])}},{key:"setWeight",value:function(t,e){this.weights[t]=e;var n=this.weights.reduce((function(t,e){return t+e}),0);this.weightsRelative=this.weights.map((function(t){return 5*t/n}))}},{key:"matchAgainst",value:function(t,e){var n=0;for(var r in t){var i=t[r],o=this.curls[r];if(void 0!==o){var a,l=D(o);try{for(l.s();!(a=l.n()).done;){var u=b(a.value,2),c=u[0],f=u[1];if(i==c){n+=f*this.weightsRelative[r];break}}}catch(t){l.e(t)}finally{l.f()}}else n+=this.weightsRelative[r]}for(var s in e){var h=e[s],d=this.directions[s];if(void 0!==d){var p,y=D(d);try{for(y.s();!(p=y.n()).done;){var g=b(p.value,2),v=g[0],m=g[1];if(h==v){n+=m*this.weightsRelative[s];break}}}catch(t){y.e(t)}finally{y.f()}}else n+=this.weightsRelative[s]}return n}}])&&M(e.prototype,n),r&&M(e,r),t}(),T=new S("victory");T.addCurl(o.Thumb,a.HalfCurl,.5),T.addCurl(o.Thumb,a.NoCurl,.5),T.addDirection(o.Thumb,l.VerticalUp,1),T.addDirection(o.Thumb,l.DiagonalUpLeft,1),T.addCurl(o.Index,a.NoCurl,1),T.addDirection(o.Index,l.VerticalUp,.75),T.addDirection(o.Index,l.DiagonalUpLeft,1),T.addCurl(o.Middle,a.NoCurl,1),T.addDirection(o.Middle,l.VerticalUp,1),T.addDirection(o.Middle,l.DiagonalUpLeft,.75),T.addCurl(o.Ring,a.FullCurl,1),T.addDirection(o.Ring,l.VerticalUp,.2),T.addDirection(o.Ring,l.DiagonalUpLeft,1),T.addDirection(o.Ring,l.HorizontalLeft,.2),T.addCurl(o.Pinky,a.FullCurl,1),T.addDirection(o.Pinky,l.VerticalUp,.2),T.addDirection(o.Pinky,l.DiagonalUpLeft,1),T.addDirection(o.Pinky,l.HorizontalLeft,.2),T.setWeight(o.Index,2),T.setWeight(o.Middle,2);var C=T,R=new S("thumbs_up");R.addCurl(o.Thumb,a.NoCurl,1),R.addDirection(o.Thumb,l.VerticalUp,1),R.addDirection(o.Thumb,l.DiagonalUpLeft,.25),R.addDirection(o.Thumb,l.DiagonalUpRight,.25);for(var A=0,L=[o.Index,o.Middle,o.Ring,o.Pinky];A<L.length;A++){var _=L[A];R.addCurl(_,a.FullCurl,1),R.addDirection(_,l.HorizontalLeft,1),R.addDirection(_,l.HorizontalRight,1)}var j=R;e.default={GestureEstimator:m,GestureDescription:S,Finger:o,FingerCurl:a,FingerDirection:l,Gestures:r}}]).default}));
-},{}],16:[function(require,module,exports){
-// A library of seedable RNGs implemented in Javascript.
-//
-// Usage:
-//
-// var seedrandom = require('seedrandom');
-// var random = seedrandom(1); // or any seed.
-// var x = random();       // 0 <= x < 1.  Every bit is random.
-// var x = random.quick(); // 0 <= x < 1.  32 bits of randomness.
-
-// alea, a 53-bit multiply-with-carry generator by Johannes Baagøe.
-// Period: ~2^116
-// Reported to pass all BigCrush tests.
-var alea = require('./lib/alea');
-
-// xor128, a pure xor-shift generator by George Marsaglia.
-// Period: 2^128-1.
-// Reported to fail: MatrixRank and LinearComp.
-var xor128 = require('./lib/xor128');
-
-// xorwow, George Marsaglia's 160-bit xor-shift combined plus weyl.
-// Period: 2^192-2^32
-// Reported to fail: CollisionOver, SimpPoker, and LinearComp.
-var xorwow = require('./lib/xorwow');
-
-// xorshift7, by François Panneton and Pierre L'ecuyer, takes
-// a different approach: it adds robustness by allowing more shifts
-// than Marsaglia's original three.  It is a 7-shift generator
-// with 256 bits, that passes BigCrush with no systmatic failures.
-// Period 2^256-1.
-// No systematic BigCrush failures reported.
-var xorshift7 = require('./lib/xorshift7');
-
-// xor4096, by Richard Brent, is a 4096-bit xor-shift with a
-// very long period that also adds a Weyl generator. It also passes
-// BigCrush with no systematic failures.  Its long period may
-// be useful if you have many generators and need to avoid
-// collisions.
-// Period: 2^4128-2^32.
-// No systematic BigCrush failures reported.
-var xor4096 = require('./lib/xor4096');
-
-// Tyche-i, by Samuel Neves and Filipe Araujo, is a bit-shifting random
-// number generator derived from ChaCha, a modern stream cipher.
-// https://eden.dei.uc.pt/~sneves/pubs/2011-snfa2.pdf
-// Period: ~2^127
-// No systematic BigCrush failures reported.
-var tychei = require('./lib/tychei');
-
-// The original ARC4-based prng included in this library.
-// Period: ~2^1600
-var sr = require('./seedrandom');
-
-sr.alea = alea;
-sr.xor128 = xor128;
-sr.xorwow = xorwow;
-sr.xorshift7 = xorshift7;
-sr.xor4096 = xor4096;
-sr.tychei = tychei;
-
-module.exports = sr;
-
-},{"./lib/alea":17,"./lib/tychei":18,"./lib/xor128":19,"./lib/xor4096":20,"./lib/xorshift7":21,"./lib/xorwow":22,"./seedrandom":23}],17:[function(require,module,exports){
-// A port of an algorithm by Johannes Baagøe <baagoe@baagoe.com>, 2010
-// http://baagoe.com/en/RandomMusings/javascript/
-// https://github.com/nquinlan/better-random-numbers-for-javascript-mirror
-// Original work is under MIT license -
-
-// Copyright (C) 2010 by Johannes Baagøe <baagoe@baagoe.org>
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-// 
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-// 
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
-
-
-(function(global, module, define) {
-
-function Alea(seed) {
-  var me = this, mash = Mash();
-
-  me.next = function() {
-    var t = 2091639 * me.s0 + me.c * 2.3283064365386963e-10; // 2^-32
-    me.s0 = me.s1;
-    me.s1 = me.s2;
-    return me.s2 = t - (me.c = t | 0);
-  };
-
-  // Apply the seeding algorithm from Baagoe.
-  me.c = 1;
-  me.s0 = mash(' ');
-  me.s1 = mash(' ');
-  me.s2 = mash(' ');
-  me.s0 -= mash(seed);
-  if (me.s0 < 0) { me.s0 += 1; }
-  me.s1 -= mash(seed);
-  if (me.s1 < 0) { me.s1 += 1; }
-  me.s2 -= mash(seed);
-  if (me.s2 < 0) { me.s2 += 1; }
-  mash = null;
-}
-
-function copy(f, t) {
-  t.c = f.c;
-  t.s0 = f.s0;
-  t.s1 = f.s1;
-  t.s2 = f.s2;
-  return t;
-}
-
-function impl(seed, opts) {
-  var xg = new Alea(seed),
-      state = opts && opts.state,
-      prng = xg.next;
-  prng.int32 = function() { return (xg.next() * 0x100000000) | 0; }
-  prng.double = function() {
-    return prng() + (prng() * 0x200000 | 0) * 1.1102230246251565e-16; // 2^-53
-  };
-  prng.quick = prng;
-  if (state) {
-    if (typeof(state) == 'object') copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-function Mash() {
-  var n = 0xefc8249d;
-
-  var mash = function(data) {
-    data = data.toString();
-    for (var i = 0; i < data.length; i++) {
-      n += data.charCodeAt(i);
-      var h = 0.02519603282416938 * n;
-      n = h >>> 0;
-      h -= n;
-      h *= n;
-      n = h >>> 0;
-      h -= n;
-      n += h * 0x100000000; // 2^32
-    }
-    return (n >>> 0) * 2.3283064365386963e-10; // 2^-32
-  };
-
-  return mash;
-}
-
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.alea = impl;
-}
-
-})(
-  this,
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-
-
-},{}],18:[function(require,module,exports){
-// A Javascript implementaion of the "Tyche-i" prng algorithm by
-// Samuel Neves and Filipe Araujo.
-// See https://eden.dei.uc.pt/~sneves/pubs/2011-snfa2.pdf
-
-(function(global, module, define) {
-
-function XorGen(seed) {
-  var me = this, strseed = '';
-
-  // Set up generator function.
-  me.next = function() {
-    var b = me.b, c = me.c, d = me.d, a = me.a;
-    b = (b << 25) ^ (b >>> 7) ^ c;
-    c = (c - d) | 0;
-    d = (d << 24) ^ (d >>> 8) ^ a;
-    a = (a - b) | 0;
-    me.b = b = (b << 20) ^ (b >>> 12) ^ c;
-    me.c = c = (c - d) | 0;
-    me.d = (d << 16) ^ (c >>> 16) ^ a;
-    return me.a = (a - b) | 0;
-  };
-
-  /* The following is non-inverted tyche, which has better internal
-   * bit diffusion, but which is about 25% slower than tyche-i in JS.
-  me.next = function() {
-    var a = me.a, b = me.b, c = me.c, d = me.d;
-    a = (me.a + me.b | 0) >>> 0;
-    d = me.d ^ a; d = d << 16 ^ d >>> 16;
-    c = me.c + d | 0;
-    b = me.b ^ c; b = b << 12 ^ d >>> 20;
-    me.a = a = a + b | 0;
-    d = d ^ a; me.d = d = d << 8 ^ d >>> 24;
-    me.c = c = c + d | 0;
-    b = b ^ c;
-    return me.b = (b << 7 ^ b >>> 25);
-  }
-  */
-
-  me.a = 0;
-  me.b = 0;
-  me.c = 2654435769 | 0;
-  me.d = 1367130551;
-
-  if (seed === Math.floor(seed)) {
-    // Integer seed.
-    me.a = (seed / 0x100000000) | 0;
-    me.b = seed | 0;
-  } else {
-    // String seed.
-    strseed += seed;
-  }
-
-  // Mix in string seed, then discard an initial batch of 64 values.
-  for (var k = 0; k < strseed.length + 20; k++) {
-    me.b ^= strseed.charCodeAt(k) | 0;
-    me.next();
-  }
-}
-
-function copy(f, t) {
-  t.a = f.a;
-  t.b = f.b;
-  t.c = f.c;
-  t.d = f.d;
-  return t;
-};
-
-function impl(seed, opts) {
-  var xg = new XorGen(seed),
-      state = opts && opts.state,
-      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
-  prng.double = function() {
-    do {
-      var top = xg.next() >>> 11,
-          bot = (xg.next() >>> 0) / 0x100000000,
-          result = (top + bot) / (1 << 21);
-    } while (result === 0);
-    return result;
-  };
-  prng.int32 = xg.next;
-  prng.quick = prng;
-  if (state) {
-    if (typeof(state) == 'object') copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.tychei = impl;
-}
-
-})(
-  this,
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-
-
-},{}],19:[function(require,module,exports){
-// A Javascript implementaion of the "xor128" prng algorithm by
-// George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
-
-(function(global, module, define) {
-
-function XorGen(seed) {
-  var me = this, strseed = '';
-
-  me.x = 0;
-  me.y = 0;
-  me.z = 0;
-  me.w = 0;
-
-  // Set up generator function.
-  me.next = function() {
-    var t = me.x ^ (me.x << 11);
-    me.x = me.y;
-    me.y = me.z;
-    me.z = me.w;
-    return me.w ^= (me.w >>> 19) ^ t ^ (t >>> 8);
-  };
-
-  if (seed === (seed | 0)) {
-    // Integer seed.
-    me.x = seed;
-  } else {
-    // String seed.
-    strseed += seed;
-  }
-
-  // Mix in string seed, then discard an initial batch of 64 values.
-  for (var k = 0; k < strseed.length + 64; k++) {
-    me.x ^= strseed.charCodeAt(k) | 0;
-    me.next();
-  }
-}
-
-function copy(f, t) {
-  t.x = f.x;
-  t.y = f.y;
-  t.z = f.z;
-  t.w = f.w;
-  return t;
-}
-
-function impl(seed, opts) {
-  var xg = new XorGen(seed),
-      state = opts && opts.state,
-      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
-  prng.double = function() {
-    do {
-      var top = xg.next() >>> 11,
-          bot = (xg.next() >>> 0) / 0x100000000,
-          result = (top + bot) / (1 << 21);
-    } while (result === 0);
-    return result;
-  };
-  prng.int32 = xg.next;
-  prng.quick = prng;
-  if (state) {
-    if (typeof(state) == 'object') copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.xor128 = impl;
-}
-
-})(
-  this,
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-
-
-},{}],20:[function(require,module,exports){
-// A Javascript implementaion of Richard Brent's Xorgens xor4096 algorithm.
-//
-// This fast non-cryptographic random number generator is designed for
-// use in Monte-Carlo algorithms. It combines a long-period xorshift
-// generator with a Weyl generator, and it passes all common batteries
-// of stasticial tests for randomness while consuming only a few nanoseconds
-// for each prng generated.  For background on the generator, see Brent's
-// paper: "Some long-period random number generators using shifts and xors."
-// http://arxiv.org/pdf/1004.3115v1.pdf
-//
-// Usage:
-//
-// var xor4096 = require('xor4096');
-// random = xor4096(1);                        // Seed with int32 or string.
-// assert.equal(random(), 0.1520436450538547); // (0, 1) range, 53 bits.
-// assert.equal(random.int32(), 1806534897);   // signed int32, 32 bits.
-//
-// For nonzero numeric keys, this impelementation provides a sequence
-// identical to that by Brent's xorgens 3 implementaion in C.  This
-// implementation also provides for initalizing the generator with
-// string seeds, or for saving and restoring the state of the generator.
-//
-// On Chrome, this prng benchmarks about 2.1 times slower than
-// Javascript's built-in Math.random().
-
-(function(global, module, define) {
-
-function XorGen(seed) {
-  var me = this;
-
-  // Set up generator function.
-  me.next = function() {
-    var w = me.w,
-        X = me.X, i = me.i, t, v;
-    // Update Weyl generator.
-    me.w = w = (w + 0x61c88647) | 0;
-    // Update xor generator.
-    v = X[(i + 34) & 127];
-    t = X[i = ((i + 1) & 127)];
-    v ^= v << 13;
-    t ^= t << 17;
-    v ^= v >>> 15;
-    t ^= t >>> 12;
-    // Update Xor generator array state.
-    v = X[i] = v ^ t;
-    me.i = i;
-    // Result is the combination.
-    return (v + (w ^ (w >>> 16))) | 0;
-  };
-
-  function init(me, seed) {
-    var t, v, i, j, w, X = [], limit = 128;
-    if (seed === (seed | 0)) {
-      // Numeric seeds initialize v, which is used to generates X.
-      v = seed;
-      seed = null;
-    } else {
-      // String seeds are mixed into v and X one character at a time.
-      seed = seed + '\0';
-      v = 0;
-      limit = Math.max(limit, seed.length);
-    }
-    // Initialize circular array and weyl value.
-    for (i = 0, j = -32; j < limit; ++j) {
-      // Put the unicode characters into the array, and shuffle them.
-      if (seed) v ^= seed.charCodeAt((j + 32) % seed.length);
-      // After 32 shuffles, take v as the starting w value.
-      if (j === 0) w = v;
-      v ^= v << 10;
-      v ^= v >>> 15;
-      v ^= v << 4;
-      v ^= v >>> 13;
-      if (j >= 0) {
-        w = (w + 0x61c88647) | 0;     // Weyl.
-        t = (X[j & 127] ^= (v + w));  // Combine xor and weyl to init array.
-        i = (0 == t) ? i + 1 : 0;     // Count zeroes.
-      }
-    }
-    // We have detected all zeroes; make the key nonzero.
-    if (i >= 128) {
-      X[(seed && seed.length || 0) & 127] = -1;
-    }
-    // Run the generator 512 times to further mix the state before using it.
-    // Factoring this as a function slows the main generator, so it is just
-    // unrolled here.  The weyl generator is not advanced while warming up.
-    i = 127;
-    for (j = 4 * 128; j > 0; --j) {
-      v = X[(i + 34) & 127];
-      t = X[i = ((i + 1) & 127)];
-      v ^= v << 13;
-      t ^= t << 17;
-      v ^= v >>> 15;
-      t ^= t >>> 12;
-      X[i] = v ^ t;
-    }
-    // Storing state as object members is faster than using closure variables.
-    me.w = w;
-    me.X = X;
-    me.i = i;
-  }
-
-  init(me, seed);
-}
-
-function copy(f, t) {
-  t.i = f.i;
-  t.w = f.w;
-  t.X = f.X.slice();
-  return t;
-};
-
-function impl(seed, opts) {
-  if (seed == null) seed = +(new Date);
-  var xg = new XorGen(seed),
-      state = opts && opts.state,
-      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
-  prng.double = function() {
-    do {
-      var top = xg.next() >>> 11,
-          bot = (xg.next() >>> 0) / 0x100000000,
-          result = (top + bot) / (1 << 21);
-    } while (result === 0);
-    return result;
-  };
-  prng.int32 = xg.next;
-  prng.quick = prng;
-  if (state) {
-    if (state.X) copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.xor4096 = impl;
-}
-
-})(
-  this,                                     // window object or global
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-},{}],21:[function(require,module,exports){
-// A Javascript implementaion of the "xorshift7" algorithm by
-// François Panneton and Pierre L'ecuyer:
-// "On the Xorgshift Random Number Generators"
-// http://saluc.engr.uconn.edu/refs/crypto/rng/panneton05onthexorshift.pdf
-
-(function(global, module, define) {
-
-function XorGen(seed) {
-  var me = this;
-
-  // Set up generator function.
-  me.next = function() {
-    // Update xor generator.
-    var X = me.x, i = me.i, t, v, w;
-    t = X[i]; t ^= (t >>> 7); v = t ^ (t << 24);
-    t = X[(i + 1) & 7]; v ^= t ^ (t >>> 10);
-    t = X[(i + 3) & 7]; v ^= t ^ (t >>> 3);
-    t = X[(i + 4) & 7]; v ^= t ^ (t << 7);
-    t = X[(i + 7) & 7]; t = t ^ (t << 13); v ^= t ^ (t << 9);
-    X[i] = v;
-    me.i = (i + 1) & 7;
-    return v;
-  };
-
-  function init(me, seed) {
-    var j, w, X = [];
-
-    if (seed === (seed | 0)) {
-      // Seed state array using a 32-bit integer.
-      w = X[0] = seed;
-    } else {
-      // Seed state using a string.
-      seed = '' + seed;
-      for (j = 0; j < seed.length; ++j) {
-        X[j & 7] = (X[j & 7] << 15) ^
-            (seed.charCodeAt(j) + X[(j + 1) & 7] << 13);
-      }
-    }
-    // Enforce an array length of 8, not all zeroes.
-    while (X.length < 8) X.push(0);
-    for (j = 0; j < 8 && X[j] === 0; ++j);
-    if (j == 8) w = X[7] = -1; else w = X[j];
-
-    me.x = X;
-    me.i = 0;
-
-    // Discard an initial 256 values.
-    for (j = 256; j > 0; --j) {
-      me.next();
-    }
-  }
-
-  init(me, seed);
-}
-
-function copy(f, t) {
-  t.x = f.x.slice();
-  t.i = f.i;
-  return t;
-}
-
-function impl(seed, opts) {
-  if (seed == null) seed = +(new Date);
-  var xg = new XorGen(seed),
-      state = opts && opts.state,
-      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
-  prng.double = function() {
-    do {
-      var top = xg.next() >>> 11,
-          bot = (xg.next() >>> 0) / 0x100000000,
-          result = (top + bot) / (1 << 21);
-    } while (result === 0);
-    return result;
-  };
-  prng.int32 = xg.next;
-  prng.quick = prng;
-  if (state) {
-    if (state.x) copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.xorshift7 = impl;
-}
-
-})(
-  this,
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-
-},{}],22:[function(require,module,exports){
-// A Javascript implementaion of the "xorwow" prng algorithm by
-// George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
-
-(function(global, module, define) {
-
-function XorGen(seed) {
-  var me = this, strseed = '';
-
-  // Set up generator function.
-  me.next = function() {
-    var t = (me.x ^ (me.x >>> 2));
-    me.x = me.y; me.y = me.z; me.z = me.w; me.w = me.v;
-    return (me.d = (me.d + 362437 | 0)) +
-       (me.v = (me.v ^ (me.v << 4)) ^ (t ^ (t << 1))) | 0;
-  };
-
-  me.x = 0;
-  me.y = 0;
-  me.z = 0;
-  me.w = 0;
-  me.v = 0;
-
-  if (seed === (seed | 0)) {
-    // Integer seed.
-    me.x = seed;
-  } else {
-    // String seed.
-    strseed += seed;
-  }
-
-  // Mix in string seed, then discard an initial batch of 64 values.
-  for (var k = 0; k < strseed.length + 64; k++) {
-    me.x ^= strseed.charCodeAt(k) | 0;
-    if (k == strseed.length) {
-      me.d = me.x << 10 ^ me.x >>> 4;
-    }
-    me.next();
-  }
-}
-
-function copy(f, t) {
-  t.x = f.x;
-  t.y = f.y;
-  t.z = f.z;
-  t.w = f.w;
-  t.v = f.v;
-  t.d = f.d;
-  return t;
-}
-
-function impl(seed, opts) {
-  var xg = new XorGen(seed),
-      state = opts && opts.state,
-      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
-  prng.double = function() {
-    do {
-      var top = xg.next() >>> 11,
-          bot = (xg.next() >>> 0) / 0x100000000,
-          result = (top + bot) / (1 << 21);
-    } while (result === 0);
-    return result;
-  };
-  prng.int32 = xg.next;
-  prng.quick = prng;
-  if (state) {
-    if (typeof(state) == 'object') copy(state, xg);
-    prng.state = function() { return copy(xg, {}); }
-  }
-  return prng;
-}
-
-if (module && module.exports) {
-  module.exports = impl;
-} else if (define && define.amd) {
-  define(function() { return impl; });
-} else {
-  this.xorwow = impl;
-}
-
-})(
-  this,
-  (typeof module) == 'object' && module,    // present in node.js
-  (typeof define) == 'function' && define   // present with an AMD loader
-);
-
-
-
-},{}],23:[function(require,module,exports){
-/*
-Copyright 2014 David Bau.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-*/
-
-(function (pool, math) {
-//
-// The following constants are related to IEEE 754 limits.
-//
-var global = this,
-    width = 256,        // each RC4 output is 0 <= x < 256
-    chunks = 6,         // at least six RC4 outputs for each double
-    digits = 52,        // there are 52 significant digits in a double
-    rngname = 'random', // rngname: name for Math.random and Math.seedrandom
-    startdenom = math.pow(width, chunks),
-    significance = math.pow(2, digits),
-    overflow = significance * 2,
-    mask = width - 1,
-    nodecrypto;         // node.js crypto module, initialized at the bottom.
-
-//
-// seedrandom()
-// This is the seedrandom function described above.
-//
-function seedrandom(seed, options, callback) {
-  var key = [];
-  options = (options == true) ? { entropy: true } : (options || {});
-
-  // Flatten the seed string or build one from local entropy if needed.
-  var shortseed = mixkey(flatten(
-    options.entropy ? [seed, tostring(pool)] :
-    (seed == null) ? autoseed() : seed, 3), key);
-
-  // Use the seed to initialize an ARC4 generator.
-  var arc4 = new ARC4(key);
-
-  // This function returns a random double in [0, 1) that contains
-  // randomness in every bit of the mantissa of the IEEE 754 value.
-  var prng = function() {
-    var n = arc4.g(chunks),             // Start with a numerator n < 2 ^ 48
-        d = startdenom,                 //   and denominator d = 2 ^ 48.
-        x = 0;                          //   and no 'extra last byte'.
-    while (n < significance) {          // Fill up all significant digits by
-      n = (n + x) * width;              //   shifting numerator and
-      d *= width;                       //   denominator and generating a
-      x = arc4.g(1);                    //   new least-significant-byte.
-    }
-    while (n >= overflow) {             // To avoid rounding up, before adding
-      n /= 2;                           //   last byte, shift everything
-      d /= 2;                           //   right using integer math until
-      x >>>= 1;                         //   we have exactly the desired bits.
-    }
-    return (n + x) / d;                 // Form the number within [0, 1).
-  };
-
-  prng.int32 = function() { return arc4.g(4) | 0; }
-  prng.quick = function() { return arc4.g(4) / 0x100000000; }
-  prng.double = prng;
-
-  // Mix the randomness into accumulated entropy.
-  mixkey(tostring(arc4.S), pool);
-
-  // Calling convention: what to return as a function of prng, seed, is_math.
-  return (options.pass || callback ||
-      function(prng, seed, is_math_call, state) {
-        if (state) {
-          // Load the arc4 state from the given state if it has an S array.
-          if (state.S) { copy(state, arc4); }
-          // Only provide the .state method if requested via options.state.
-          prng.state = function() { return copy(arc4, {}); }
-        }
-
-        // If called as a method of Math (Math.seedrandom()), mutate
-        // Math.random because that is how seedrandom.js has worked since v1.0.
-        if (is_math_call) { math[rngname] = prng; return seed; }
-
-        // Otherwise, it is a newer calling convention, so return the
-        // prng directly.
-        else return prng;
-      })(
-  prng,
-  shortseed,
-  'global' in options ? options.global : (this == math),
-  options.state);
-}
-math['seed' + rngname] = seedrandom;
-
-//
-// ARC4
-//
-// An ARC4 implementation.  The constructor takes a key in the form of
-// an array of at most (width) integers that should be 0 <= x < (width).
-//
-// The g(count) method returns a pseudorandom integer that concatenates
-// the next (count) outputs from ARC4.  Its return value is a number x
-// that is in the range 0 <= x < (width ^ count).
-//
-function ARC4(key) {
-  var t, keylen = key.length,
-      me = this, i = 0, j = me.i = me.j = 0, s = me.S = [];
-
-  // The empty key [] is treated as [0].
-  if (!keylen) { key = [keylen++]; }
-
-  // Set up S using the standard key scheduling algorithm.
-  while (i < width) {
-    s[i] = i++;
-  }
-  for (i = 0; i < width; i++) {
-    s[i] = s[j = mask & (j + key[i % keylen] + (t = s[i]))];
-    s[j] = t;
-  }
-
-  // The "g" method returns the next (count) outputs as one number.
-  (me.g = function(count) {
-    // Using instance members instead of closure state nearly doubles speed.
-    var t, r = 0,
-        i = me.i, j = me.j, s = me.S;
-    while (count--) {
-      t = s[i = mask & (i + 1)];
-      r = r * width + s[mask & ((s[i] = s[j = mask & (j + t)]) + (s[j] = t))];
-    }
-    me.i = i; me.j = j;
-    return r;
-    // For robust unpredictability, the function call below automatically
-    // discards an initial batch of values.  This is called RC4-drop[256].
-    // See http://google.com/search?q=rsa+fluhrer+response&btnI
-  })(width);
-}
-
-//
-// copy()
-// Copies internal state of ARC4 to or from a plain object.
-//
-function copy(f, t) {
-  t.i = f.i;
-  t.j = f.j;
-  t.S = f.S.slice();
-  return t;
-};
-
-//
-// flatten()
-// Converts an object tree to nested arrays of strings.
-//
-function flatten(obj, depth) {
-  var result = [], typ = (typeof obj), prop;
-  if (depth && typ == 'object') {
-    for (prop in obj) {
-      try { result.push(flatten(obj[prop], depth - 1)); } catch (e) {}
-    }
-  }
-  return (result.length ? result : typ == 'string' ? obj : obj + '\0');
-}
-
-//
-// mixkey()
-// Mixes a string seed into a key that is an array of integers, and
-// returns a shortened string seed that is equivalent to the result key.
-//
-function mixkey(seed, key) {
-  var stringseed = seed + '', smear, j = 0;
-  while (j < stringseed.length) {
-    key[mask & j] =
-      mask & ((smear ^= key[mask & j] * 19) + stringseed.charCodeAt(j++));
-  }
-  return tostring(key);
-}
-
-//
-// autoseed()
-// Returns an object for autoseeding, using window.crypto and Node crypto
-// module if available.
-//
-function autoseed() {
-  try {
-    var out;
-    if (nodecrypto && (out = nodecrypto.randomBytes)) {
-      // The use of 'out' to remember randomBytes makes tight minified code.
-      out = out(width);
-    } else {
-      out = new Uint8Array(width);
-      (global.crypto || global.msCrypto).getRandomValues(out);
-    }
-    return tostring(out);
-  } catch (e) {
-    var browser = global.navigator,
-        plugins = browser && browser.plugins;
-    return [+new Date, global, plugins, global.screen, tostring(pool)];
-  }
-}
-
-//
-// tostring()
-// Converts an array of charcodes to a string
-//
-function tostring(a) {
-  return String.fromCharCode.apply(0, a);
-}
-
-//
-// When seedrandom.js is loaded, we immediately mix a few bits
-// from the built-in RNG into the entropy pool.  Because we do
-// not want to interfere with deterministic PRNG state later,
-// seedrandom will not call math.random on its own again after
-// initialization.
-//
-mixkey(math.random(), pool);
-
-//
-// Nodejs and AMD support: export the implementation as a module using
-// either convention.
-//
-if ((typeof module) == 'object' && module.exports) {
-  module.exports = seedrandom;
-  // When in node.js, try using crypto package for autoseeding.
-  try {
-    nodecrypto = require('crypto');
-  } catch (ex) {}
-} else if ((typeof define) == 'function' && define.amd) {
-  define(function() { return seedrandom; });
-}
-
-// End anonymous scope, and pass initial values.
-})(
-  [],     // pool: entropy pool starts empty
-  Math    // math: package containing random, pow, and seedrandom
-);
-
-},{"crypto":27}],24:[function(require,module,exports){
-// stats.js - http://github.com/mrdoob/stats.js
-(function(f,e){"object"===typeof exports&&"undefined"!==typeof module?module.exports=e():"function"===typeof define&&define.amd?define(e):f.Stats=e()})(this,function(){var f=function(){function e(a){c.appendChild(a.dom);return a}function u(a){for(var d=0;d<c.children.length;d++)c.children[d].style.display=d===a?"block":"none";l=a}var l=0,c=document.createElement("div");c.style.cssText="position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000";c.addEventListener("click",function(a){a.preventDefault();
-u(++l%c.children.length)},!1);var k=(performance||Date).now(),g=k,a=0,r=e(new f.Panel("FPS","#0ff","#002")),h=e(new f.Panel("MS","#0f0","#020"));if(self.performance&&self.performance.memory)var t=e(new f.Panel("MB","#f08","#201"));u(0);return{REVISION:16,dom:c,addPanel:e,showPanel:u,begin:function(){k=(performance||Date).now()},end:function(){a++;var c=(performance||Date).now();h.update(c-k,200);if(c>g+1E3&&(r.update(1E3*a/(c-g),100),g=c,a=0,t)){var d=performance.memory;t.update(d.usedJSHeapSize/
-1048576,d.jsHeapSizeLimit/1048576)}return c},update:function(){k=this.end()},domElement:c,setMode:u}};f.Panel=function(e,f,l){var c=Infinity,k=0,g=Math.round,a=g(window.devicePixelRatio||1),r=80*a,h=48*a,t=3*a,v=2*a,d=3*a,m=15*a,n=74*a,p=30*a,q=document.createElement("canvas");q.width=r;q.height=h;q.style.cssText="width:80px;height:48px";var b=q.getContext("2d");b.font="bold "+9*a+"px Helvetica,Arial,sans-serif";b.textBaseline="top";b.fillStyle=l;b.fillRect(0,0,r,h);b.fillStyle=f;b.fillText(e,t,v);
-b.fillRect(d,m,n,p);b.fillStyle=l;b.globalAlpha=.9;b.fillRect(d,m,n,p);return{dom:q,update:function(h,w){c=Math.min(c,h);k=Math.max(k,h);b.fillStyle=l;b.globalAlpha=1;b.fillRect(0,0,r,m);b.fillStyle=f;b.fillText(g(h)+" "+e+" ("+g(c)+"-"+g(k)+")",t,v);b.drawImage(q,d+a,m,n-a,p,d,m,n-a,p);b.fillRect(d+n-a,m,a,p);b.fillStyle=l;b.globalAlpha=.9;b.fillRect(d+n-a,m,a,g((1-h/w)*p))}}};return f});
-
-},{}],25:[function(require,module,exports){
-var bundleFn = arguments[3];
-var sources = arguments[4];
-var cache = arguments[5];
-
-var stringify = JSON.stringify;
-
-module.exports = function (fn, options) {
-    var wkey;
-    var cacheKeys = Object.keys(cache);
-
-    for (var i = 0, l = cacheKeys.length; i < l; i++) {
-        var key = cacheKeys[i];
-        var exp = cache[key].exports;
-        // Using babel as a transpiler to use esmodule, the export will always
-        // be an object with the default export as a property of it. To ensure
-        // the existing api and babel esmodule exports are both supported we
-        // check for both
-        if (exp === fn || exp && exp.default === fn) {
-            wkey = key;
-            break;
-        }
-    }
-
-    if (!wkey) {
-        wkey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
-        var wcache = {};
-        for (var i = 0, l = cacheKeys.length; i < l; i++) {
-            var key = cacheKeys[i];
-            wcache[key] = key;
-        }
-        sources[wkey] = [
-            'function(require,module,exports){' + fn + '(self); }',
-            wcache
-        ];
-    }
-    var skey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
-
-    var scache = {}; scache[wkey] = wkey;
-    sources[skey] = [
-        'function(require,module,exports){' +
-            // try to call default if defined to also support babel esmodule exports
-            'var f = require(' + stringify(wkey) + ');' +
-            '(f.default ? f.default : f)(self);' +
-        '}',
-        scache
-    ];
-
-    var workerSources = {};
-    resolveSources(skey);
-
-    function resolveSources(key) {
-        workerSources[key] = true;
-
-        for (var depPath in sources[key][1]) {
-            var depKey = sources[key][1][depPath];
-            if (!workerSources[depKey]) {
-                resolveSources(depKey);
-            }
-        }
-    }
-
-    var src = '(' + bundleFn + ')({'
-        + Object.keys(workerSources).map(function (key) {
-            return stringify(key) + ':['
-                + sources[key][0]
-                + ',' + stringify(sources[key][1]) + ']'
-            ;
-        }).join(',')
-        + '},{},[' + stringify(skey) + '])'
-    ;
-
-    var URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
-
-    var blob = new Blob([src], { type: 'text/javascript' });
-    if (options && options.bare) { return blob; }
-    var workerUrl = URL.createObjectURL(blob);
-    var worker = new Worker(workerUrl);
-    worker.objectURL = workerUrl;
-    return worker;
-};
-
-},{}],26:[function(require,module,exports){
+},{"_process":15,"buffer":12,"crypto":11,"node-fetch":11,"timers":25,"util":11}],10:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -51463,9 +49769,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],27:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 
-},{}],28:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 (function (Buffer){(function (){
 /*!
  * The buffer module from node.js, for the browser.
@@ -53246,7 +51552,9 @@ function numberIsNaN (obj) {
 }
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":26,"buffer":28,"ieee754":29}],29:[function(require,module,exports){
+},{"base64-js":10,"buffer":12,"ieee754":14}],13:[function(require,module,exports){
+!function(t,e){"object"==typeof exports&&"object"==typeof module?module.exports=e():"function"==typeof define&&define.amd?define([],e):"object"==typeof exports?exports.fp=e():t.fp=e()}("undefined"!=typeof self?self:this,(function(){return function(t){var e={};function n(r){if(e[r])return e[r].exports;var i=e[r]={i:r,l:!1,exports:{}};return t[r].call(i.exports,i,i.exports,n),i.l=!0,i.exports}return n.m=t,n.c=e,n.d=function(t,e,r){n.o(t,e)||Object.defineProperty(t,e,{enumerable:!0,get:r})},n.r=function(t){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})},n.t=function(t,e){if(1&e&&(t=n(t)),8&e)return t;if(4&e&&"object"==typeof t&&t&&t.__esModule)return t;var r=Object.create(null);if(n.r(r),Object.defineProperty(r,"default",{enumerable:!0,value:t}),2&e&&"string"!=typeof t)for(var i in t)n.d(r,i,function(e){return t[e]}.bind(null,i));return r},n.n=function(t){var e=t&&t.__esModule?function(){return t.default}:function(){return t};return n.d(e,"a",e),e},n.o=function(t,e){return Object.prototype.hasOwnProperty.call(t,e)},n.p="",n(n.s=0)}([function(t,e,n){"use strict";n.r(e);var r={};function i(t){return(i="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t})(t)}n.r(r),n.d(r,"VictoryGesture",(function(){return C})),n.d(r,"ThumbsUpGesture",(function(){return j}));var o={Thumb:0,Index:1,Middle:2,Ring:3,Pinky:4,all:[0,1,2,3,4],nameMapping:{0:"Thumb",1:"Index",2:"Middle",3:"Ring",4:"Pinky"},pointsMapping:{0:[[0,1],[1,2],[2,3],[3,4]],1:[[0,5],[5,6],[6,7],[7,8]],2:[[0,9],[9,10],[10,11],[11,12]],3:[[0,13],[13,14],[14,15],[15,16]],4:[[0,17],[17,18],[18,19],[19,20]]},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]},getPoints:function(t){return void 0!==i(this.pointsMapping[t])&&this.pointsMapping[t]}},a={NoCurl:0,HalfCurl:1,FullCurl:2,nameMapping:{0:"No Curl",1:"Half Curl",2:"Full Curl"},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]}},l={VerticalUp:0,VerticalDown:1,HorizontalLeft:2,HorizontalRight:3,DiagonalUpRight:4,DiagonalUpLeft:5,DiagonalDownRight:6,DiagonalDownLeft:7,nameMapping:{0:"Vertical Up",1:"Vertical Down",2:"Horizontal Left",3:"Horizontal Right",4:"Diagonal Up Right",5:"Diagonal Up Left",6:"Diagonal Down Right",7:"Diagonal Down Left"},getName:function(t){return void 0!==i(this.nameMapping[t])&&this.nameMapping[t]}};function u(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=function(t,e){if(!t)return;if("string"==typeof t)return c(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);"Object"===n&&t.constructor&&(n=t.constructor.name);if("Map"===n||"Set"===n)return Array.from(n);if("Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n))return c(t,e)}(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function c(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function f(t,e){var n=Object.keys(t);if(Object.getOwnPropertySymbols){var r=Object.getOwnPropertySymbols(t);e&&(r=r.filter((function(e){return Object.getOwnPropertyDescriptor(t,e).enumerable}))),n.push.apply(n,r)}return n}function s(t,e,n){return e in t?Object.defineProperty(t,e,{value:n,enumerable:!0,configurable:!0,writable:!0}):t[e]=n,t}function h(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var d=function(){function t(e){!function(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}(this,t),this.options=function(t){for(var e=1;e<arguments.length;e++){var n=null!=arguments[e]?arguments[e]:{};e%2?f(Object(n),!0).forEach((function(e){s(t,e,n[e])})):Object.getOwnPropertyDescriptors?Object.defineProperties(t,Object.getOwnPropertyDescriptors(n)):f(Object(n)).forEach((function(e){Object.defineProperty(t,e,Object.getOwnPropertyDescriptor(n,e))}))}return t}({},{HALF_CURL_START_LIMIT:60,NO_CURL_START_LIMIT:130,DISTANCE_VOTE_POWER:1.1,SINGLE_ANGLE_VOTE_POWER:.9,TOTAL_ANGLE_VOTE_POWER:1.6},{},e)}var e,n,r;return e=t,(n=[{key:"estimate",value:function(t){var e,n=[],r=[],i=u(o.all);try{for(i.s();!(e=i.n()).done;){var a,l=e.value,c=o.getPoints(l),f=[],s=[],h=u(c);try{for(h.s();!(a=h.n()).done;){var d=a.value,p=t[d[0]],y=t[d[1]],g=this.getSlopes(p,y),v=g[0],m=g[1];f.push(v),s.push(m)}}catch(t){h.e(t)}finally{h.f()}n.push(f),r.push(s)}}catch(t){i.e(t)}finally{i.f()}var b,D=[],w=[],O=u(o.all);try{for(O.s();!(b=O.n()).done;){var M=b.value,S=M==o.Thumb?1:0,T=o.getPoints(M),C=t[T[S][0]],R=t[T[S+1][1]],A=t[T[3][1]],L=this.estimateFingerCurl(C,R,A),_=this.calculateFingerDirection(C,R,A,n[M].slice(S));D[M]=L,w[M]=_}}catch(t){O.e(t)}finally{O.f()}return{curls:D,directions:w}}},{key:"getSlopes",value:function(t,e){var n=this.calculateSlope(t[0],t[1],e[0],e[1]);return 2==t.length?n:[n,this.calculateSlope(t[1],t[2],e[1],e[2])]}},{key:"angleOrientationAt",value:function(t){var e=arguments.length>1&&void 0!==arguments[1]?arguments[1]:1,n=0,r=0,i=0;return t>=75&&t<=105?n=1*e:t>=25&&t<=155?r=1*e:i=1*e,[n,r,i]}},{key:"estimateFingerCurl",value:function(t,e,n){var r=t[0]-e[0],i=t[0]-n[0],o=e[0]-n[0],l=t[1]-e[1],u=t[1]-n[1],c=e[1]-n[1],f=t[2]-e[2],s=t[2]-n[2],h=e[2]-n[2],d=Math.sqrt(r*r+l*l+f*f),p=Math.sqrt(i*i+u*u+s*s),y=Math.sqrt(o*o+c*c+h*h),g=(y*y+d*d-p*p)/(2*y*d);g>1?g=1:g<-1&&(g=-1);var v=Math.acos(g);return(v=57.2958*v%180)>this.options.NO_CURL_START_LIMIT?a.NoCurl:v>this.options.HALF_CURL_START_LIMIT?a.HalfCurl:a.FullCurl}},{key:"estimateHorizontalDirection",value:function(t,e,n,r){return r==Math.abs(t)?t>0?l.HorizontalLeft:l.HorizontalRight:r==Math.abs(e)?e>0?l.HorizontalLeft:l.HorizontalRight:n>0?l.HorizontalLeft:l.HorizontalRight}},{key:"estimateVerticalDirection",value:function(t,e,n,r){return r==Math.abs(t)?t<0?l.VerticalDown:l.VerticalUp:r==Math.abs(e)?e<0?l.VerticalDown:l.VerticalUp:n<0?l.VerticalDown:l.VerticalUp}},{key:"estimateDiagonalDirection",value:function(t,e,n,r,i,o,a,u){var c=this.estimateVerticalDirection(t,e,n,r),f=this.estimateHorizontalDirection(i,o,a,u);return c==l.VerticalUp?f==l.HorizontalLeft?l.DiagonalUpLeft:l.DiagonalUpRight:f==l.HorizontalLeft?l.DiagonalDownLeft:l.DiagonalDownRight}},{key:"calculateFingerDirection",value:function(t,e,n,r){var i=t[0]-e[0],o=t[0]-n[0],a=e[0]-n[0],l=t[1]-e[1],c=t[1]-n[1],f=e[1]-n[1],s=Math.max(Math.abs(i),Math.abs(o),Math.abs(a)),h=Math.max(Math.abs(l),Math.abs(c),Math.abs(f)),d=0,p=0,y=0,g=h/(s+1e-5);g>1.5?d+=this.options.DISTANCE_VOTE_POWER:g>.66?p+=this.options.DISTANCE_VOTE_POWER:y+=this.options.DISTANCE_VOTE_POWER;var v=Math.sqrt(i*i+l*l),m=Math.sqrt(o*o+c*c),b=Math.sqrt(a*a+f*f),D=Math.max(v,m,b),w=t[0],O=t[1],M=n[0],S=n[1];D==v?(M=n[0],S=n[1]):D==b&&(w=e[0],O=e[1]);var T=[w,O],C=[M,S],R=this.getSlopes(T,C),A=this.angleOrientationAt(R,this.options.TOTAL_ANGLE_VOTE_POWER);d+=A[0],p+=A[1],y+=A[2];var L,_=u(r);try{for(_.s();!(L=_.n()).done;){var j=L.value,E=this.angleOrientationAt(j,this.options.SINGLE_ANGLE_VOTE_POWER);d+=E[0],p+=E[1],y+=E[2]}}catch(t){_.e(t)}finally{_.f()}return d==Math.max(d,p,y)?this.estimateVerticalDirection(c,l,f,h):y==Math.max(p,y)?this.estimateHorizontalDirection(o,i,a,s):this.estimateDiagonalDirection(c,l,f,h,o,i,a,s)}},{key:"calculateSlope",value:function(t,e,n,r){var i=(e-r)/(t-n),o=180*Math.atan(i)/Math.PI;return o<=0?o=-o:o>0&&(o=180-o),o}}])&&h(e.prototype,n),r&&h(e,r),t}();function p(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=function(t,e){if(!t)return;if("string"==typeof t)return y(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);"Object"===n&&t.constructor&&(n=t.constructor.name);if("Map"===n||"Set"===n)return Array.from(n);if("Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n))return y(t,e)}(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function y(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function g(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}function v(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var m=function(){function t(e){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{};g(this,t),this.estimator=new d(n),this.gestures=e}var e,n,r;return e=t,(n=[{key:"estimate",value:function(t,e){var n,r=[],i=this.estimator.estimate(t),u=[],c=p(o.all);try{for(c.s();!(n=c.n()).done;){var f=n.value;u.push([o.getName(f),a.getName(i.curls[f]),l.getName(i.directions[f])])}}catch(t){c.e(t)}finally{c.f()}var s,h=p(this.gestures);try{for(h.s();!(s=h.n()).done;){var d=s.value,y=d.matchAgainst(i.curls,i.directions);y>=e&&r.push({name:d.name,confidence:y})}}catch(t){h.e(t)}finally{h.f()}return{poseData:u,gestures:r}}}])&&v(e.prototype,n),r&&v(e,r),t}();function b(t,e){return function(t){if(Array.isArray(t))return t}(t)||function(t,e){if("undefined"==typeof Symbol||!(Symbol.iterator in Object(t)))return;var n=[],r=!0,i=!1,o=void 0;try{for(var a,l=t[Symbol.iterator]();!(r=(a=l.next()).done)&&(n.push(a.value),!e||n.length!==e);r=!0);}catch(t){i=!0,o=t}finally{try{r||null==l.return||l.return()}finally{if(i)throw o}}return n}(t,e)||w(t,e)||function(){throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()}function D(t){if("undefined"==typeof Symbol||null==t[Symbol.iterator]){if(Array.isArray(t)||(t=w(t))){var e=0,n=function(){};return{s:n,n:function(){return e>=t.length?{done:!0}:{done:!1,value:t[e++]}},e:function(t){throw t},f:n}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}var r,i,o=!0,a=!1;return{s:function(){r=t[Symbol.iterator]()},n:function(){var t=r.next();return o=t.done,t},e:function(t){a=!0,i=t},f:function(){try{o||null==r.return||r.return()}finally{if(a)throw i}}}}function w(t,e){if(t){if("string"==typeof t)return O(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);return"Object"===n&&t.constructor&&(n=t.constructor.name),"Map"===n||"Set"===n?Array.from(n):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?O(t,e):void 0}}function O(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,r=new Array(e);n<e;n++)r[n]=t[n];return r}function M(t,e){for(var n=0;n<e.length;n++){var r=e[n];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,r.key,r)}}var S=function(){function t(e){!function(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}(this,t),this.name=e,this.curls={},this.directions={},this.weights=[1,1,1,1,1],this.weightsRelative=[1,1,1,1,1]}var e,n,r;return e=t,(n=[{key:"addCurl",value:function(t,e,n){void 0===this.curls[t]&&(this.curls[t]=[]),this.curls[t].push([e,n])}},{key:"addDirection",value:function(t,e,n){void 0===this.directions[t]&&(this.directions[t]=[]),this.directions[t].push([e,n])}},{key:"setWeight",value:function(t,e){this.weights[t]=e;var n=this.weights.reduce((function(t,e){return t+e}),0);this.weightsRelative=this.weights.map((function(t){return 5*t/n}))}},{key:"matchAgainst",value:function(t,e){var n=0;for(var r in t){var i=t[r],o=this.curls[r];if(void 0!==o){var a,l=D(o);try{for(l.s();!(a=l.n()).done;){var u=b(a.value,2),c=u[0],f=u[1];if(i==c){n+=f*this.weightsRelative[r];break}}}catch(t){l.e(t)}finally{l.f()}}else n+=this.weightsRelative[r]}for(var s in e){var h=e[s],d=this.directions[s];if(void 0!==d){var p,y=D(d);try{for(y.s();!(p=y.n()).done;){var g=b(p.value,2),v=g[0],m=g[1];if(h==v){n+=m*this.weightsRelative[s];break}}}catch(t){y.e(t)}finally{y.f()}}else n+=this.weightsRelative[s]}return n}}])&&M(e.prototype,n),r&&M(e,r),t}(),T=new S("victory");T.addCurl(o.Thumb,a.HalfCurl,.5),T.addCurl(o.Thumb,a.NoCurl,.5),T.addDirection(o.Thumb,l.VerticalUp,1),T.addDirection(o.Thumb,l.DiagonalUpLeft,1),T.addCurl(o.Index,a.NoCurl,1),T.addDirection(o.Index,l.VerticalUp,.75),T.addDirection(o.Index,l.DiagonalUpLeft,1),T.addCurl(o.Middle,a.NoCurl,1),T.addDirection(o.Middle,l.VerticalUp,1),T.addDirection(o.Middle,l.DiagonalUpLeft,.75),T.addCurl(o.Ring,a.FullCurl,1),T.addDirection(o.Ring,l.VerticalUp,.2),T.addDirection(o.Ring,l.DiagonalUpLeft,1),T.addDirection(o.Ring,l.HorizontalLeft,.2),T.addCurl(o.Pinky,a.FullCurl,1),T.addDirection(o.Pinky,l.VerticalUp,.2),T.addDirection(o.Pinky,l.DiagonalUpLeft,1),T.addDirection(o.Pinky,l.HorizontalLeft,.2),T.setWeight(o.Index,2),T.setWeight(o.Middle,2);var C=T,R=new S("thumbs_up");R.addCurl(o.Thumb,a.NoCurl,1),R.addDirection(o.Thumb,l.VerticalUp,1),R.addDirection(o.Thumb,l.DiagonalUpLeft,.25),R.addDirection(o.Thumb,l.DiagonalUpRight,.25);for(var A=0,L=[o.Index,o.Middle,o.Ring,o.Pinky];A<L.length;A++){var _=L[A];R.addCurl(_,a.FullCurl,1),R.addDirection(_,l.HorizontalLeft,1),R.addDirection(_,l.HorizontalRight,1)}var j=R;e.default={GestureEstimator:m,GestureDescription:S,Finger:o,FingerCurl:a,FingerDirection:l,Gestures:r}}]).default}));
+},{}],14:[function(require,module,exports){
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
@@ -53333,7 +51641,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],30:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -53519,7 +51827,964 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],31:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
+// A library of seedable RNGs implemented in Javascript.
+//
+// Usage:
+//
+// var seedrandom = require('seedrandom');
+// var random = seedrandom(1); // or any seed.
+// var x = random();       // 0 <= x < 1.  Every bit is random.
+// var x = random.quick(); // 0 <= x < 1.  32 bits of randomness.
+
+// alea, a 53-bit multiply-with-carry generator by Johannes Baagøe.
+// Period: ~2^116
+// Reported to pass all BigCrush tests.
+var alea = require('./lib/alea');
+
+// xor128, a pure xor-shift generator by George Marsaglia.
+// Period: 2^128-1.
+// Reported to fail: MatrixRank and LinearComp.
+var xor128 = require('./lib/xor128');
+
+// xorwow, George Marsaglia's 160-bit xor-shift combined plus weyl.
+// Period: 2^192-2^32
+// Reported to fail: CollisionOver, SimpPoker, and LinearComp.
+var xorwow = require('./lib/xorwow');
+
+// xorshift7, by François Panneton and Pierre L'ecuyer, takes
+// a different approach: it adds robustness by allowing more shifts
+// than Marsaglia's original three.  It is a 7-shift generator
+// with 256 bits, that passes BigCrush with no systmatic failures.
+// Period 2^256-1.
+// No systematic BigCrush failures reported.
+var xorshift7 = require('./lib/xorshift7');
+
+// xor4096, by Richard Brent, is a 4096-bit xor-shift with a
+// very long period that also adds a Weyl generator. It also passes
+// BigCrush with no systematic failures.  Its long period may
+// be useful if you have many generators and need to avoid
+// collisions.
+// Period: 2^4128-2^32.
+// No systematic BigCrush failures reported.
+var xor4096 = require('./lib/xor4096');
+
+// Tyche-i, by Samuel Neves and Filipe Araujo, is a bit-shifting random
+// number generator derived from ChaCha, a modern stream cipher.
+// https://eden.dei.uc.pt/~sneves/pubs/2011-snfa2.pdf
+// Period: ~2^127
+// No systematic BigCrush failures reported.
+var tychei = require('./lib/tychei');
+
+// The original ARC4-based prng included in this library.
+// Period: ~2^1600
+var sr = require('./seedrandom');
+
+sr.alea = alea;
+sr.xor128 = xor128;
+sr.xorwow = xorwow;
+sr.xorshift7 = xorshift7;
+sr.xor4096 = xor4096;
+sr.tychei = tychei;
+
+module.exports = sr;
+
+},{"./lib/alea":17,"./lib/tychei":18,"./lib/xor128":19,"./lib/xor4096":20,"./lib/xorshift7":21,"./lib/xorwow":22,"./seedrandom":23}],17:[function(require,module,exports){
+// A port of an algorithm by Johannes Baagøe <baagoe@baagoe.com>, 2010
+// http://baagoe.com/en/RandomMusings/javascript/
+// https://github.com/nquinlan/better-random-numbers-for-javascript-mirror
+// Original work is under MIT license -
+
+// Copyright (C) 2010 by Johannes Baagøe <baagoe@baagoe.org>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+
+
+(function(global, module, define) {
+
+function Alea(seed) {
+  var me = this, mash = Mash();
+
+  me.next = function() {
+    var t = 2091639 * me.s0 + me.c * 2.3283064365386963e-10; // 2^-32
+    me.s0 = me.s1;
+    me.s1 = me.s2;
+    return me.s2 = t - (me.c = t | 0);
+  };
+
+  // Apply the seeding algorithm from Baagoe.
+  me.c = 1;
+  me.s0 = mash(' ');
+  me.s1 = mash(' ');
+  me.s2 = mash(' ');
+  me.s0 -= mash(seed);
+  if (me.s0 < 0) { me.s0 += 1; }
+  me.s1 -= mash(seed);
+  if (me.s1 < 0) { me.s1 += 1; }
+  me.s2 -= mash(seed);
+  if (me.s2 < 0) { me.s2 += 1; }
+  mash = null;
+}
+
+function copy(f, t) {
+  t.c = f.c;
+  t.s0 = f.s0;
+  t.s1 = f.s1;
+  t.s2 = f.s2;
+  return t;
+}
+
+function impl(seed, opts) {
+  var xg = new Alea(seed),
+      state = opts && opts.state,
+      prng = xg.next;
+  prng.int32 = function() { return (xg.next() * 0x100000000) | 0; }
+  prng.double = function() {
+    return prng() + (prng() * 0x200000 | 0) * 1.1102230246251565e-16; // 2^-53
+  };
+  prng.quick = prng;
+  if (state) {
+    if (typeof(state) == 'object') copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+function Mash() {
+  var n = 0xefc8249d;
+
+  var mash = function(data) {
+    data = data.toString();
+    for (var i = 0; i < data.length; i++) {
+      n += data.charCodeAt(i);
+      var h = 0.02519603282416938 * n;
+      n = h >>> 0;
+      h -= n;
+      h *= n;
+      n = h >>> 0;
+      h -= n;
+      n += h * 0x100000000; // 2^32
+    }
+    return (n >>> 0) * 2.3283064365386963e-10; // 2^-32
+  };
+
+  return mash;
+}
+
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.alea = impl;
+}
+
+})(
+  this,
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+
+
+},{}],18:[function(require,module,exports){
+// A Javascript implementaion of the "Tyche-i" prng algorithm by
+// Samuel Neves and Filipe Araujo.
+// See https://eden.dei.uc.pt/~sneves/pubs/2011-snfa2.pdf
+
+(function(global, module, define) {
+
+function XorGen(seed) {
+  var me = this, strseed = '';
+
+  // Set up generator function.
+  me.next = function() {
+    var b = me.b, c = me.c, d = me.d, a = me.a;
+    b = (b << 25) ^ (b >>> 7) ^ c;
+    c = (c - d) | 0;
+    d = (d << 24) ^ (d >>> 8) ^ a;
+    a = (a - b) | 0;
+    me.b = b = (b << 20) ^ (b >>> 12) ^ c;
+    me.c = c = (c - d) | 0;
+    me.d = (d << 16) ^ (c >>> 16) ^ a;
+    return me.a = (a - b) | 0;
+  };
+
+  /* The following is non-inverted tyche, which has better internal
+   * bit diffusion, but which is about 25% slower than tyche-i in JS.
+  me.next = function() {
+    var a = me.a, b = me.b, c = me.c, d = me.d;
+    a = (me.a + me.b | 0) >>> 0;
+    d = me.d ^ a; d = d << 16 ^ d >>> 16;
+    c = me.c + d | 0;
+    b = me.b ^ c; b = b << 12 ^ d >>> 20;
+    me.a = a = a + b | 0;
+    d = d ^ a; me.d = d = d << 8 ^ d >>> 24;
+    me.c = c = c + d | 0;
+    b = b ^ c;
+    return me.b = (b << 7 ^ b >>> 25);
+  }
+  */
+
+  me.a = 0;
+  me.b = 0;
+  me.c = 2654435769 | 0;
+  me.d = 1367130551;
+
+  if (seed === Math.floor(seed)) {
+    // Integer seed.
+    me.a = (seed / 0x100000000) | 0;
+    me.b = seed | 0;
+  } else {
+    // String seed.
+    strseed += seed;
+  }
+
+  // Mix in string seed, then discard an initial batch of 64 values.
+  for (var k = 0; k < strseed.length + 20; k++) {
+    me.b ^= strseed.charCodeAt(k) | 0;
+    me.next();
+  }
+}
+
+function copy(f, t) {
+  t.a = f.a;
+  t.b = f.b;
+  t.c = f.c;
+  t.d = f.d;
+  return t;
+};
+
+function impl(seed, opts) {
+  var xg = new XorGen(seed),
+      state = opts && opts.state,
+      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
+  prng.double = function() {
+    do {
+      var top = xg.next() >>> 11,
+          bot = (xg.next() >>> 0) / 0x100000000,
+          result = (top + bot) / (1 << 21);
+    } while (result === 0);
+    return result;
+  };
+  prng.int32 = xg.next;
+  prng.quick = prng;
+  if (state) {
+    if (typeof(state) == 'object') copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.tychei = impl;
+}
+
+})(
+  this,
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+
+
+},{}],19:[function(require,module,exports){
+// A Javascript implementaion of the "xor128" prng algorithm by
+// George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
+
+(function(global, module, define) {
+
+function XorGen(seed) {
+  var me = this, strseed = '';
+
+  me.x = 0;
+  me.y = 0;
+  me.z = 0;
+  me.w = 0;
+
+  // Set up generator function.
+  me.next = function() {
+    var t = me.x ^ (me.x << 11);
+    me.x = me.y;
+    me.y = me.z;
+    me.z = me.w;
+    return me.w ^= (me.w >>> 19) ^ t ^ (t >>> 8);
+  };
+
+  if (seed === (seed | 0)) {
+    // Integer seed.
+    me.x = seed;
+  } else {
+    // String seed.
+    strseed += seed;
+  }
+
+  // Mix in string seed, then discard an initial batch of 64 values.
+  for (var k = 0; k < strseed.length + 64; k++) {
+    me.x ^= strseed.charCodeAt(k) | 0;
+    me.next();
+  }
+}
+
+function copy(f, t) {
+  t.x = f.x;
+  t.y = f.y;
+  t.z = f.z;
+  t.w = f.w;
+  return t;
+}
+
+function impl(seed, opts) {
+  var xg = new XorGen(seed),
+      state = opts && opts.state,
+      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
+  prng.double = function() {
+    do {
+      var top = xg.next() >>> 11,
+          bot = (xg.next() >>> 0) / 0x100000000,
+          result = (top + bot) / (1 << 21);
+    } while (result === 0);
+    return result;
+  };
+  prng.int32 = xg.next;
+  prng.quick = prng;
+  if (state) {
+    if (typeof(state) == 'object') copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.xor128 = impl;
+}
+
+})(
+  this,
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+
+
+},{}],20:[function(require,module,exports){
+// A Javascript implementaion of Richard Brent's Xorgens xor4096 algorithm.
+//
+// This fast non-cryptographic random number generator is designed for
+// use in Monte-Carlo algorithms. It combines a long-period xorshift
+// generator with a Weyl generator, and it passes all common batteries
+// of stasticial tests for randomness while consuming only a few nanoseconds
+// for each prng generated.  For background on the generator, see Brent's
+// paper: "Some long-period random number generators using shifts and xors."
+// http://arxiv.org/pdf/1004.3115v1.pdf
+//
+// Usage:
+//
+// var xor4096 = require('xor4096');
+// random = xor4096(1);                        // Seed with int32 or string.
+// assert.equal(random(), 0.1520436450538547); // (0, 1) range, 53 bits.
+// assert.equal(random.int32(), 1806534897);   // signed int32, 32 bits.
+//
+// For nonzero numeric keys, this impelementation provides a sequence
+// identical to that by Brent's xorgens 3 implementaion in C.  This
+// implementation also provides for initalizing the generator with
+// string seeds, or for saving and restoring the state of the generator.
+//
+// On Chrome, this prng benchmarks about 2.1 times slower than
+// Javascript's built-in Math.random().
+
+(function(global, module, define) {
+
+function XorGen(seed) {
+  var me = this;
+
+  // Set up generator function.
+  me.next = function() {
+    var w = me.w,
+        X = me.X, i = me.i, t, v;
+    // Update Weyl generator.
+    me.w = w = (w + 0x61c88647) | 0;
+    // Update xor generator.
+    v = X[(i + 34) & 127];
+    t = X[i = ((i + 1) & 127)];
+    v ^= v << 13;
+    t ^= t << 17;
+    v ^= v >>> 15;
+    t ^= t >>> 12;
+    // Update Xor generator array state.
+    v = X[i] = v ^ t;
+    me.i = i;
+    // Result is the combination.
+    return (v + (w ^ (w >>> 16))) | 0;
+  };
+
+  function init(me, seed) {
+    var t, v, i, j, w, X = [], limit = 128;
+    if (seed === (seed | 0)) {
+      // Numeric seeds initialize v, which is used to generates X.
+      v = seed;
+      seed = null;
+    } else {
+      // String seeds are mixed into v and X one character at a time.
+      seed = seed + '\0';
+      v = 0;
+      limit = Math.max(limit, seed.length);
+    }
+    // Initialize circular array and weyl value.
+    for (i = 0, j = -32; j < limit; ++j) {
+      // Put the unicode characters into the array, and shuffle them.
+      if (seed) v ^= seed.charCodeAt((j + 32) % seed.length);
+      // After 32 shuffles, take v as the starting w value.
+      if (j === 0) w = v;
+      v ^= v << 10;
+      v ^= v >>> 15;
+      v ^= v << 4;
+      v ^= v >>> 13;
+      if (j >= 0) {
+        w = (w + 0x61c88647) | 0;     // Weyl.
+        t = (X[j & 127] ^= (v + w));  // Combine xor and weyl to init array.
+        i = (0 == t) ? i + 1 : 0;     // Count zeroes.
+      }
+    }
+    // We have detected all zeroes; make the key nonzero.
+    if (i >= 128) {
+      X[(seed && seed.length || 0) & 127] = -1;
+    }
+    // Run the generator 512 times to further mix the state before using it.
+    // Factoring this as a function slows the main generator, so it is just
+    // unrolled here.  The weyl generator is not advanced while warming up.
+    i = 127;
+    for (j = 4 * 128; j > 0; --j) {
+      v = X[(i + 34) & 127];
+      t = X[i = ((i + 1) & 127)];
+      v ^= v << 13;
+      t ^= t << 17;
+      v ^= v >>> 15;
+      t ^= t >>> 12;
+      X[i] = v ^ t;
+    }
+    // Storing state as object members is faster than using closure variables.
+    me.w = w;
+    me.X = X;
+    me.i = i;
+  }
+
+  init(me, seed);
+}
+
+function copy(f, t) {
+  t.i = f.i;
+  t.w = f.w;
+  t.X = f.X.slice();
+  return t;
+};
+
+function impl(seed, opts) {
+  if (seed == null) seed = +(new Date);
+  var xg = new XorGen(seed),
+      state = opts && opts.state,
+      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
+  prng.double = function() {
+    do {
+      var top = xg.next() >>> 11,
+          bot = (xg.next() >>> 0) / 0x100000000,
+          result = (top + bot) / (1 << 21);
+    } while (result === 0);
+    return result;
+  };
+  prng.int32 = xg.next;
+  prng.quick = prng;
+  if (state) {
+    if (state.X) copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.xor4096 = impl;
+}
+
+})(
+  this,                                     // window object or global
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+},{}],21:[function(require,module,exports){
+// A Javascript implementaion of the "xorshift7" algorithm by
+// François Panneton and Pierre L'ecuyer:
+// "On the Xorgshift Random Number Generators"
+// http://saluc.engr.uconn.edu/refs/crypto/rng/panneton05onthexorshift.pdf
+
+(function(global, module, define) {
+
+function XorGen(seed) {
+  var me = this;
+
+  // Set up generator function.
+  me.next = function() {
+    // Update xor generator.
+    var X = me.x, i = me.i, t, v, w;
+    t = X[i]; t ^= (t >>> 7); v = t ^ (t << 24);
+    t = X[(i + 1) & 7]; v ^= t ^ (t >>> 10);
+    t = X[(i + 3) & 7]; v ^= t ^ (t >>> 3);
+    t = X[(i + 4) & 7]; v ^= t ^ (t << 7);
+    t = X[(i + 7) & 7]; t = t ^ (t << 13); v ^= t ^ (t << 9);
+    X[i] = v;
+    me.i = (i + 1) & 7;
+    return v;
+  };
+
+  function init(me, seed) {
+    var j, w, X = [];
+
+    if (seed === (seed | 0)) {
+      // Seed state array using a 32-bit integer.
+      w = X[0] = seed;
+    } else {
+      // Seed state using a string.
+      seed = '' + seed;
+      for (j = 0; j < seed.length; ++j) {
+        X[j & 7] = (X[j & 7] << 15) ^
+            (seed.charCodeAt(j) + X[(j + 1) & 7] << 13);
+      }
+    }
+    // Enforce an array length of 8, not all zeroes.
+    while (X.length < 8) X.push(0);
+    for (j = 0; j < 8 && X[j] === 0; ++j);
+    if (j == 8) w = X[7] = -1; else w = X[j];
+
+    me.x = X;
+    me.i = 0;
+
+    // Discard an initial 256 values.
+    for (j = 256; j > 0; --j) {
+      me.next();
+    }
+  }
+
+  init(me, seed);
+}
+
+function copy(f, t) {
+  t.x = f.x.slice();
+  t.i = f.i;
+  return t;
+}
+
+function impl(seed, opts) {
+  if (seed == null) seed = +(new Date);
+  var xg = new XorGen(seed),
+      state = opts && opts.state,
+      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
+  prng.double = function() {
+    do {
+      var top = xg.next() >>> 11,
+          bot = (xg.next() >>> 0) / 0x100000000,
+          result = (top + bot) / (1 << 21);
+    } while (result === 0);
+    return result;
+  };
+  prng.int32 = xg.next;
+  prng.quick = prng;
+  if (state) {
+    if (state.x) copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.xorshift7 = impl;
+}
+
+})(
+  this,
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+
+},{}],22:[function(require,module,exports){
+// A Javascript implementaion of the "xorwow" prng algorithm by
+// George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
+
+(function(global, module, define) {
+
+function XorGen(seed) {
+  var me = this, strseed = '';
+
+  // Set up generator function.
+  me.next = function() {
+    var t = (me.x ^ (me.x >>> 2));
+    me.x = me.y; me.y = me.z; me.z = me.w; me.w = me.v;
+    return (me.d = (me.d + 362437 | 0)) +
+       (me.v = (me.v ^ (me.v << 4)) ^ (t ^ (t << 1))) | 0;
+  };
+
+  me.x = 0;
+  me.y = 0;
+  me.z = 0;
+  me.w = 0;
+  me.v = 0;
+
+  if (seed === (seed | 0)) {
+    // Integer seed.
+    me.x = seed;
+  } else {
+    // String seed.
+    strseed += seed;
+  }
+
+  // Mix in string seed, then discard an initial batch of 64 values.
+  for (var k = 0; k < strseed.length + 64; k++) {
+    me.x ^= strseed.charCodeAt(k) | 0;
+    if (k == strseed.length) {
+      me.d = me.x << 10 ^ me.x >>> 4;
+    }
+    me.next();
+  }
+}
+
+function copy(f, t) {
+  t.x = f.x;
+  t.y = f.y;
+  t.z = f.z;
+  t.w = f.w;
+  t.v = f.v;
+  t.d = f.d;
+  return t;
+}
+
+function impl(seed, opts) {
+  var xg = new XorGen(seed),
+      state = opts && opts.state,
+      prng = function() { return (xg.next() >>> 0) / 0x100000000; };
+  prng.double = function() {
+    do {
+      var top = xg.next() >>> 11,
+          bot = (xg.next() >>> 0) / 0x100000000,
+          result = (top + bot) / (1 << 21);
+    } while (result === 0);
+    return result;
+  };
+  prng.int32 = xg.next;
+  prng.quick = prng;
+  if (state) {
+    if (typeof(state) == 'object') copy(state, xg);
+    prng.state = function() { return copy(xg, {}); }
+  }
+  return prng;
+}
+
+if (module && module.exports) {
+  module.exports = impl;
+} else if (define && define.amd) {
+  define(function() { return impl; });
+} else {
+  this.xorwow = impl;
+}
+
+})(
+  this,
+  (typeof module) == 'object' && module,    // present in node.js
+  (typeof define) == 'function' && define   // present with an AMD loader
+);
+
+
+
+},{}],23:[function(require,module,exports){
+/*
+Copyright 2014 David Bau.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+*/
+
+(function (pool, math) {
+//
+// The following constants are related to IEEE 754 limits.
+//
+var global = this,
+    width = 256,        // each RC4 output is 0 <= x < 256
+    chunks = 6,         // at least six RC4 outputs for each double
+    digits = 52,        // there are 52 significant digits in a double
+    rngname = 'random', // rngname: name for Math.random and Math.seedrandom
+    startdenom = math.pow(width, chunks),
+    significance = math.pow(2, digits),
+    overflow = significance * 2,
+    mask = width - 1,
+    nodecrypto;         // node.js crypto module, initialized at the bottom.
+
+//
+// seedrandom()
+// This is the seedrandom function described above.
+//
+function seedrandom(seed, options, callback) {
+  var key = [];
+  options = (options == true) ? { entropy: true } : (options || {});
+
+  // Flatten the seed string or build one from local entropy if needed.
+  var shortseed = mixkey(flatten(
+    options.entropy ? [seed, tostring(pool)] :
+    (seed == null) ? autoseed() : seed, 3), key);
+
+  // Use the seed to initialize an ARC4 generator.
+  var arc4 = new ARC4(key);
+
+  // This function returns a random double in [0, 1) that contains
+  // randomness in every bit of the mantissa of the IEEE 754 value.
+  var prng = function() {
+    var n = arc4.g(chunks),             // Start with a numerator n < 2 ^ 48
+        d = startdenom,                 //   and denominator d = 2 ^ 48.
+        x = 0;                          //   and no 'extra last byte'.
+    while (n < significance) {          // Fill up all significant digits by
+      n = (n + x) * width;              //   shifting numerator and
+      d *= width;                       //   denominator and generating a
+      x = arc4.g(1);                    //   new least-significant-byte.
+    }
+    while (n >= overflow) {             // To avoid rounding up, before adding
+      n /= 2;                           //   last byte, shift everything
+      d /= 2;                           //   right using integer math until
+      x >>>= 1;                         //   we have exactly the desired bits.
+    }
+    return (n + x) / d;                 // Form the number within [0, 1).
+  };
+
+  prng.int32 = function() { return arc4.g(4) | 0; }
+  prng.quick = function() { return arc4.g(4) / 0x100000000; }
+  prng.double = prng;
+
+  // Mix the randomness into accumulated entropy.
+  mixkey(tostring(arc4.S), pool);
+
+  // Calling convention: what to return as a function of prng, seed, is_math.
+  return (options.pass || callback ||
+      function(prng, seed, is_math_call, state) {
+        if (state) {
+          // Load the arc4 state from the given state if it has an S array.
+          if (state.S) { copy(state, arc4); }
+          // Only provide the .state method if requested via options.state.
+          prng.state = function() { return copy(arc4, {}); }
+        }
+
+        // If called as a method of Math (Math.seedrandom()), mutate
+        // Math.random because that is how seedrandom.js has worked since v1.0.
+        if (is_math_call) { math[rngname] = prng; return seed; }
+
+        // Otherwise, it is a newer calling convention, so return the
+        // prng directly.
+        else return prng;
+      })(
+  prng,
+  shortseed,
+  'global' in options ? options.global : (this == math),
+  options.state);
+}
+math['seed' + rngname] = seedrandom;
+
+//
+// ARC4
+//
+// An ARC4 implementation.  The constructor takes a key in the form of
+// an array of at most (width) integers that should be 0 <= x < (width).
+//
+// The g(count) method returns a pseudorandom integer that concatenates
+// the next (count) outputs from ARC4.  Its return value is a number x
+// that is in the range 0 <= x < (width ^ count).
+//
+function ARC4(key) {
+  var t, keylen = key.length,
+      me = this, i = 0, j = me.i = me.j = 0, s = me.S = [];
+
+  // The empty key [] is treated as [0].
+  if (!keylen) { key = [keylen++]; }
+
+  // Set up S using the standard key scheduling algorithm.
+  while (i < width) {
+    s[i] = i++;
+  }
+  for (i = 0; i < width; i++) {
+    s[i] = s[j = mask & (j + key[i % keylen] + (t = s[i]))];
+    s[j] = t;
+  }
+
+  // The "g" method returns the next (count) outputs as one number.
+  (me.g = function(count) {
+    // Using instance members instead of closure state nearly doubles speed.
+    var t, r = 0,
+        i = me.i, j = me.j, s = me.S;
+    while (count--) {
+      t = s[i = mask & (i + 1)];
+      r = r * width + s[mask & ((s[i] = s[j = mask & (j + t)]) + (s[j] = t))];
+    }
+    me.i = i; me.j = j;
+    return r;
+    // For robust unpredictability, the function call below automatically
+    // discards an initial batch of values.  This is called RC4-drop[256].
+    // See http://google.com/search?q=rsa+fluhrer+response&btnI
+  })(width);
+}
+
+//
+// copy()
+// Copies internal state of ARC4 to or from a plain object.
+//
+function copy(f, t) {
+  t.i = f.i;
+  t.j = f.j;
+  t.S = f.S.slice();
+  return t;
+};
+
+//
+// flatten()
+// Converts an object tree to nested arrays of strings.
+//
+function flatten(obj, depth) {
+  var result = [], typ = (typeof obj), prop;
+  if (depth && typ == 'object') {
+    for (prop in obj) {
+      try { result.push(flatten(obj[prop], depth - 1)); } catch (e) {}
+    }
+  }
+  return (result.length ? result : typ == 'string' ? obj : obj + '\0');
+}
+
+//
+// mixkey()
+// Mixes a string seed into a key that is an array of integers, and
+// returns a shortened string seed that is equivalent to the result key.
+//
+function mixkey(seed, key) {
+  var stringseed = seed + '', smear, j = 0;
+  while (j < stringseed.length) {
+    key[mask & j] =
+      mask & ((smear ^= key[mask & j] * 19) + stringseed.charCodeAt(j++));
+  }
+  return tostring(key);
+}
+
+//
+// autoseed()
+// Returns an object for autoseeding, using window.crypto and Node crypto
+// module if available.
+//
+function autoseed() {
+  try {
+    var out;
+    if (nodecrypto && (out = nodecrypto.randomBytes)) {
+      // The use of 'out' to remember randomBytes makes tight minified code.
+      out = out(width);
+    } else {
+      out = new Uint8Array(width);
+      (global.crypto || global.msCrypto).getRandomValues(out);
+    }
+    return tostring(out);
+  } catch (e) {
+    var browser = global.navigator,
+        plugins = browser && browser.plugins;
+    return [+new Date, global, plugins, global.screen, tostring(pool)];
+  }
+}
+
+//
+// tostring()
+// Converts an array of charcodes to a string
+//
+function tostring(a) {
+  return String.fromCharCode.apply(0, a);
+}
+
+//
+// When seedrandom.js is loaded, we immediately mix a few bits
+// from the built-in RNG into the entropy pool.  Because we do
+// not want to interfere with deterministic PRNG state later,
+// seedrandom will not call math.random on its own again after
+// initialization.
+//
+mixkey(math.random(), pool);
+
+//
+// Nodejs and AMD support: export the implementation as a module using
+// either convention.
+//
+if ((typeof module) == 'object' && module.exports) {
+  module.exports = seedrandom;
+  // When in node.js, try using crypto package for autoseeding.
+  try {
+    nodecrypto = require('crypto');
+  } catch (ex) {}
+} else if ((typeof define) == 'function' && define.amd) {
+  define(function() { return seedrandom; });
+}
+
+// End anonymous scope, and pass initial values.
+})(
+  [],     // pool: entropy pool starts empty
+  Math    // math: package containing random, pow, and seedrandom
+);
+
+},{"crypto":11}],24:[function(require,module,exports){
+// stats.js - http://github.com/mrdoob/stats.js
+(function(f,e){"object"===typeof exports&&"undefined"!==typeof module?module.exports=e():"function"===typeof define&&define.amd?define(e):f.Stats=e()})(this,function(){var f=function(){function e(a){c.appendChild(a.dom);return a}function u(a){for(var d=0;d<c.children.length;d++)c.children[d].style.display=d===a?"block":"none";l=a}var l=0,c=document.createElement("div");c.style.cssText="position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000";c.addEventListener("click",function(a){a.preventDefault();
+u(++l%c.children.length)},!1);var k=(performance||Date).now(),g=k,a=0,r=e(new f.Panel("FPS","#0ff","#002")),h=e(new f.Panel("MS","#0f0","#020"));if(self.performance&&self.performance.memory)var t=e(new f.Panel("MB","#f08","#201"));u(0);return{REVISION:16,dom:c,addPanel:e,showPanel:u,begin:function(){k=(performance||Date).now()},end:function(){a++;var c=(performance||Date).now();h.update(c-k,200);if(c>g+1E3&&(r.update(1E3*a/(c-g),100),g=c,a=0,t)){var d=performance.memory;t.update(d.usedJSHeapSize/
+1048576,d.jsHeapSizeLimit/1048576)}return c},update:function(){k=this.end()},domElement:c,setMode:u}};f.Panel=function(e,f,l){var c=Infinity,k=0,g=Math.round,a=g(window.devicePixelRatio||1),r=80*a,h=48*a,t=3*a,v=2*a,d=3*a,m=15*a,n=74*a,p=30*a,q=document.createElement("canvas");q.width=r;q.height=h;q.style.cssText="width:80px;height:48px";var b=q.getContext("2d");b.font="bold "+9*a+"px Helvetica,Arial,sans-serif";b.textBaseline="top";b.fillStyle=l;b.fillRect(0,0,r,h);b.fillStyle=f;b.fillText(e,t,v);
+b.fillRect(d,m,n,p);b.fillStyle=l;b.globalAlpha=.9;b.fillRect(d,m,n,p);return{dom:q,update:function(h,w){c=Math.min(c,h);k=Math.max(k,h);b.fillStyle=l;b.globalAlpha=1;b.fillRect(0,0,r,m);b.fillStyle=f;b.fillText(g(h)+" "+e+" ("+g(c)+"-"+g(k)+")",t,v);b.drawImage(q,d+a,m,n-a,p,d,m,n-a,p);b.fillRect(d+n-a,m,a,p);b.fillStyle=l;b.globalAlpha=.9;b.fillRect(d+n-a,m,a,g((1-h/w)*p))}}};return f});
+
+},{}],25:[function(require,module,exports){
 (function (setImmediate,clearImmediate){(function (){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -53598,4 +52863,737 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this)}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":30,"timers":31}]},{},[5]);
+},{"process/browser.js":15,"timers":25}],26:[function(require,module,exports){
+var bundleFn = arguments[3];
+var sources = arguments[4];
+var cache = arguments[5];
+
+var stringify = JSON.stringify;
+
+module.exports = function (fn, options) {
+    var wkey;
+    var cacheKeys = Object.keys(cache);
+
+    for (var i = 0, l = cacheKeys.length; i < l; i++) {
+        var key = cacheKeys[i];
+        var exp = cache[key].exports;
+        // Using babel as a transpiler to use esmodule, the export will always
+        // be an object with the default export as a property of it. To ensure
+        // the existing api and babel esmodule exports are both supported we
+        // check for both
+        if (exp === fn || exp && exp.default === fn) {
+            wkey = key;
+            break;
+        }
+    }
+
+    if (!wkey) {
+        wkey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
+        var wcache = {};
+        for (var i = 0, l = cacheKeys.length; i < l; i++) {
+            var key = cacheKeys[i];
+            wcache[key] = key;
+        }
+        sources[wkey] = [
+            'function(require,module,exports){' + fn + '(self); }',
+            wcache
+        ];
+    }
+    var skey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
+
+    var scache = {}; scache[wkey] = wkey;
+    sources[skey] = [
+        'function(require,module,exports){' +
+            // try to call default if defined to also support babel esmodule exports
+            'var f = require(' + stringify(wkey) + ');' +
+            '(f.default ? f.default : f)(self);' +
+        '}',
+        scache
+    ];
+
+    var workerSources = {};
+    resolveSources(skey);
+
+    function resolveSources(key) {
+        workerSources[key] = true;
+
+        for (var depPath in sources[key][1]) {
+            var depKey = sources[key][1][depPath];
+            if (!workerSources[depKey]) {
+                resolveSources(depKey);
+            }
+        }
+    }
+
+    var src = '(' + bundleFn + ')({'
+        + Object.keys(workerSources).map(function (key) {
+            return stringify(key) + ':['
+                + sources[key][0]
+                + ',' + stringify(sources[key][1]) + ']'
+            ;
+        }).join(',')
+        + '},{},[' + stringify(skey) + '])'
+    ;
+
+    var URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
+
+    var blob = new Blob([src], { type: 'text/javascript' });
+    if (options && options.bare) { return blob; }
+    var workerUrl = URL.createObjectURL(blob);
+    var worker = new Worker(workerUrl);
+    worker.objectURL = workerUrl;
+    return worker;
+};
+
+},{}],27:[function(require,module,exports){
+const { softmax } = require("@tensorflow/tfjs-core");
+const webworkify = require('webworkify');
+let videoElement = document.querySelector("#videoElement");
+let videoCanvas = document.querySelector("#videoCanvas");
+// let model = new Model();
+
+module.exports = class App {
+    constructor() {
+        this.detectionModelWorker; 
+
+        this.currentState = {
+            gesturesHistory: [],
+            x: "",
+            y: "",
+            _lastPosX: "",
+            _lastPosY: "",
+            status: "waiting",
+            directInPercent: {
+                up: "",
+                right: "",
+                down: "",
+                left: ""
+            }
+        };
+
+        /* afkScore need to execute model mistake (sometimes it don't
+        recognise a hand). If afkScore is under 3, then person just took 
+        his hand away */
+        this.afkScore = 0;         
+    }
+    async load() {
+        this.userCamera = await this.loadCamera().then(async () => {
+            this.videoElement = videoElement;
+            this.videoElement.width = 240;
+            this.videoElement.height = 120;
+            this.ctxVideo = videoCanvas.getContext("2d");
+            this.detectionModelWorker = webworkify(require("./Model.js"));
+            this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
+            videoCanvas.style.display = "block";
+            this.changeCanvas();
+        });
+    }
+    async detectHand() {
+        const canvas = document.createElement("canvas");
+        canvas.width = this.videoElement.width;
+        canvas.height = this.videoElement.height;
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(this.videoElement, 0, 0, this.videoElement.width, this.videoElement.height);
+        const img = ctx.getImageData(0, 0, this.videoElement.width, this.videoElement.height);
+       
+        this.detectionModelWorker.postMessage(img);
+    }
+    async onDetect(event) {
+        let prediction = event.data;
+        if (prediction) {
+            this.afkScore = 0;
+            this.updateCurrentState(prediction);
+            this.drawPoint(prediction.landmarks[0][0], prediction.landmarks[0][1]);
+        } else {
+            //update current state for no hand case
+            this.afkScore++;
+            this.currentState.directInPercent = {
+                up: 0,
+                right: 0,
+                down: 0,
+                left: 0
+            };
+            if(this.afkScore > 3) {
+                this.gesturesHistory = [];
+                this.currentState._lastPosX = 0;
+                this.currentState._lastPosY = 0;
+                this.currentState.status = "no_hand";
+                // console.log("!no hand");
+            } 
+        }
+        this.detectHand();
+    }
+    getCurrentState(callback, speed) {
+        setInterval(() => {
+            callback(this.currentState);
+        }, speed);
+    }
+    async loadCamera() {
+        if (navigator.mediaDevices.getUserMedia) {
+            try {
+                videoElement.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (error) {
+                console.log("Camera is not loaded");
+            }
+        }
+    }
+    changeCanvas() {
+        videoCanvas.width = this.videoElement.clientWidth;
+        videoCanvas.height = this.videoElement.clientHeight;
+        console.log(videoCanvas);
+    }
+    drawPoint(x, y) {
+        this.ctxVideo.fillStyle = "#191935";
+        this.ctxVideo.fillRect(0,0,videoCanvas.width, videoCanvas.height);
+        this.ctxVideo.beginPath();
+        this.ctxVideo.arc(videoCanvas.width-x, y, 5, 0, 2 * Math.PI);
+
+        // Set line color
+        this.ctxVideo.fillStyle = "red";
+        this.ctxVideo.fill();
+    }
+    updateCurrentState(prediction) {
+        //update gesturesHistory and status
+        let cs = this.currentState;
+        if (cs.gesturesHistory.length) {
+            if (cs.gesturesHistory[cs.gesturesHistory.length - 1] != prediction.gestureName) {
+                this.currentState.gesturesHistory.push(prediction.gestureName);
+            }
+        } else {
+            this.currentState.gesturesHistory.push(prediction.gestureName);
+        }
+        if (prediction.gestureName == "Fist") {
+            this.currentState.status = "waiting";
+        } else {
+            this.currentState.status = "tracking";
+        }
+
+        this.currentState.x = prediction.landmarks[0][0];
+        this.currentState.y = prediction.landmarks[0][1];
+        //update _lastPosX, _lastPosY and directions
+        if (cs._lastPosX && cs._lastPosY) {
+            let
+                _lastX = cs._lastPosX,
+                _lastY = cs._lastPosY,
+                x = prediction.landmarks[0][0],
+                y = prediction.landmarks[0][1];
+            let xVector = x - _lastX;
+            let yVector = y - _lastY;
+            let horisontalPercent = (Math.abs(xVector) / this.videoElement.clientWidth) * 100;
+            let verticalPercent = (Math.abs(yVector) / this.videoElement.clientHeight) * 100;
+            if (xVector > 0) {
+                this.currentState.directInPercent.right = horisontalPercent;
+                this.currentState.directInPercent.left = 0;
+            } else {
+                this.currentState.directInPercent.left = horisontalPercent;
+                this.currentState.directInPercent.right = 0;
+            }
+            if (yVector > 0) {
+                this.currentState.directInPercent.down = verticalPercent;
+                this.currentState.directInPercent.up = 0;
+            } else {
+                this.currentState.directInPercent.up = verticalPercent;
+                this.currentState.directInPercent.down = 0;
+            }
+        }
+        this.currentState._lastPosX = prediction.landmarks[0][0];
+        this.currentState._lastPosY = prediction.landmarks[0][1];
+    }
+}
+},{"./Model.js":29,"@tensorflow/tfjs-core":9,"webworkify":26}],28:[function(require,module,exports){
+const {Finger, FingerCurl, FingerDirection, GestureDescription} = require('fingerpose');
+
+let FistGesture = new GestureDescription('Fist'); 
+
+module.exports.FistGesture = FistGesture;
+
+FistGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1);
+FistGesture.addCurl(Finger.Index, FingerCurl.FullCurl, 1.0);
+FistGesture.addCurl(Finger.Middle, FingerCurl.FullCurl, 1.0);
+FistGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
+FistGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
+},{"fingerpose":13}],29:[function(require,module,exports){
+require('@tensorflow/tfjs-backend-webgl'); // handpose does not itself require a backend, so you must explicitly install one.
+require('@tensorflow/tfjs-converter');
+require('@tensorflow/tfjs-core');
+// tf.ENV.set("WEBGL_CPU_FORWARD", true)
+const handpose = require('@tensorflow-models/handpose');
+const fp = require('fingerpose');
+const {FistGesture} = require("./FistGesture");
+
+module.exports = async (self)=>{
+    
+    class Model {
+        constructor() {
+            this.handpose = handpose;
+            this.fp = fp;
+            this.GE = new fp.GestureEstimator([
+                // FistGesture,
+            ]);
+        }
+        async load() {
+            return new Promise(async (resolve, reject)=>{
+                this.model = await this.handpose.load();                
+                resolve();
+            });
+        }
+        async detectGesture(video) {
+            let returnData = {
+                landmarks: "",
+                gestureName: "",
+                gestureConfigence: ""
+            };
+            let positionPrediction = await this.model.estimateHands(video);
+            if(positionPrediction.length) {
+                let gesturePrediction = await this.GE.estimate(positionPrediction[0].landmarks, 7.5);
+                returnData.landmarks = positionPrediction[0].landmarks;
+                if(gesturePrediction.gestures.length) {
+                    returnData.gestureName = gesturePrediction.gestures[0].name;
+                    returnData.gestureConfigence = gesturePrediction.gestures[0].confidence;
+                } else {
+                    returnData.gestureName = "JustHand";
+                    returnData.gestureConfigence = 0;
+                }
+                return returnData;  
+            } 
+            return 0;
+        }
+    }
+
+    const model = new Model();
+    await model.load();
+    self.postMessage(0); // this is need to start detection loop in App.js file
+
+    self.addEventListener("message", async (event)=>{
+        let prediction = await model.detectGesture(event.data);
+        self.postMessage(prediction);
+    });
+}
+},{"./FistGesture":28,"@tensorflow-models/handpose":3,"@tensorflow/tfjs-backend-webgl":7,"@tensorflow/tfjs-converter":8,"@tensorflow/tfjs-core":9,"fingerpose":13}],30:[function(require,module,exports){
+const HandRecognition = require("../detection/App");
+const Stats = require("stats.js");
+
+module.exports = class Game {
+    constructor() {
+        this._debugConsoleLogs = document.getElementById("debug_console_logs");
+
+        this._handDetector = new HandRecognition();
+
+        this._fpsCounter = new Stats();
+        this._fpsCounter.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+        document.body.appendChild(this._fpsCounter.dom);
+
+        this._scene = new THREE.Scene();
+        this._camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this._renderer = new THREE.WebGLRenderer();
+        this._tableMaterial = new THREE.MeshBasicMaterial({ color: "#5282fa", wireframe: false });
+        this._gridMaterial = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6 });
+        this._ballMaterial = new THREE.MeshBasicMaterial({ color: "#ffffff" });
+        this._geometry = new THREE.BoxGeometry();
+        this._ballGeometry = new THREE.SphereGeometry(1, 128, 128);
+        this._table = new THREE.Mesh(this._geometry, this._tableMaterial);
+        this._tableGrid = new THREE.Mesh(this._geometry, this._gridMaterial);
+        this._ball = new THREE.Mesh(this._ballGeometry, this._ballMaterial);
+        this._sceneLight1 = new THREE.PointLight( "#fff", 10, 100 );
+        this._sceneLight2 = new THREE.PointLight( "#fff", 10, 100 );
+        this._sceneLight3 = new THREE.PointLight( "#fff", 10, 100 );
+        this._sceneLight4 = new THREE.PointLight( "#fff", 10, 100 );
+        this._edges = new THREE.EdgesGeometry(this._geometry);
+        this._edgesLine = new THREE.LineSegments(this._edges, new THREE.LineBasicMaterial({ color: "#ffffff" }));
+        this._gltfLoader = new THREE.GLTFLoader();
+        this._audioListener = new THREE.AudioListener();
+        this._tableSound = new THREE.Audio(this._audioListener);
+        this._audioLoader = new THREE.AudioLoader();
+    
+        this._renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(this._renderer.domElement);
+
+        this._renderer.setClearColor( "black", 1 );
+
+        this._camera.position.x = 0;
+        this._camera.position.y = 5;
+        this._camera.position.z = 25;
+
+        // this._camera.position.x = 25;
+        // this._camera.position.y = 3;
+        // this._camera.position.z = 0;
+        // this._camera.rotateY(1.5);
+              
+        this._sceneLight1.position.set( -50, 5, 0 );
+        this._sceneLight2.position.set( 50, 5, 0 );
+        this._sceneLight3.position.set( 0, 5, -this._table.scale.z/2-20);
+        this._sceneLight4.position.set(0, 5, this._table.scale.z/2+20);
+        
+        this._table.scale.set(15.2, 0.3, 27.4);
+        this._table.position.x = 0;
+        this._table.position.y = 0;
+        this._table.position.z = 0;
+
+        this._edgesLine.scale.set(15.2, 0.3, 27.4);
+
+        this._tableGrid.scale.set(15.2, 4, 0.5);
+        this._tableGrid.position.set(0, 0, 0);
+
+        this._ball.position.x = 0;
+        this._ball.position.y = 10;
+        this._ball.position.z = 0;
+        this._ball.scale.set(0.3, 0.3, 0.3);
+
+        this._rocketOpacity = 0.5;
+
+        this._scene.add(this._sceneLight1);
+        this._scene.add(this._sceneLight2);
+        this._scene.add(this._sceneLight3);
+        this._scene.add(this._sceneLight4);
+        this._scene.add(this._edgesLine);
+        this._scene.add(this._table);
+        this._scene.add(this._tableGrid);
+        this._scene.add(this._ball);
+
+        this._gravNormalSpeedZ = 0.5;
+        this._gravSpeedZ = 0.5;
+        this._gravSpeedX = 0.1;
+        this._gravSpeedY = 0.01;
+        this._gravDY = 0.01;
+        this._gravMaxGravity = 10;
+        this._gravMaxJumpHeight = 5;
+
+        this._rocketXOffset = 0;
+        this._rocketYOffset = 0;
+        this._lastMouseX = 0;
+        this._lastMouseY = 0;
+
+        this._lastHandCoords = null;
+        this._rocketAnimationAimCoords = null;
+
+        this._GESTURE_MODE = false;
+        this._PLAYER_ROLE = null;
+        this._GAME_START = false;
+        this._CURRENT_SCORE = [0,0];
+    }
+    _addLogMessage(message) {
+        this._debugConsoleLogs.innerHTML += ("<br>"+message);
+    }
+    _loadRocket1(path) {
+        return new Promise((resolve)=>{
+            this._gltfLoader.load(path, (gltf)=>{
+                this._pl1Rocket = gltf.scene;
+                this._pl1Rocket.traverse((node)=>{
+                    if (node.isMesh) {
+                        node.material.transparent = true;
+                        node.material.opacity = this._rocketOpacity;
+                        this._scene.add(this._pl1Rocket);
+                        resolve();
+                    }
+                });
+            });
+        });
+    } 
+    _loadRocket2(path) {
+        return new Promise((resolve)=>{
+            this._gltfLoader.load(path, (gltf)=>{
+                this._pl2Rocket = gltf.scene;
+                this._pl2Rocket.traverse((node)=>{
+                    if (node.isMesh) {
+                        node.material.transparent = true;
+                        node.material.opacity = this._rocketOpacity;
+                        this._scene.add(this._pl2Rocket);
+                        resolve();
+                    }
+                });
+            });
+        });
+    }
+    _loadTableSound(path) {
+        return new Promise((resolve)=>{
+            this._audioLoader.load(path, (buffer)=>{
+                this._tableSound.setBuffer(buffer);
+                this._tableSound.setLoop(false);
+                this._tableSound.setVolume(0.5);
+                resolve();
+            });
+        });
+    }
+    _rocketMoveAnimation() {
+        let speedX = 0.05;
+        let speedY = 0.05;
+        if(this._rocketAnimationAimCoords[0] < this._pl1Rocket.position.x) 
+            speedX *= -1;
+        if(this._rocketAnimationAimCoords[1] < this._pl1Rocket.position.x)
+            speedY *= -1;
+        
+        this._pl1Rocket.position.x += speedX;
+        this._pl1Rocket.position.y += speedY;
+        
+        // requestAnimationFrame(this._rocketMoveAnimation.bind(this));
+        // this._rocketMoveAnimation();
+    }
+    _getHandPrediction(event) {
+        // console.log(event);
+        let handX = event.x;
+        let handY = event.y;
+        if(handX || handY) {
+            // console.log(handX);
+            let s = 10;
+            if(this._lastHandCoords != null) {
+                this._rocketXOffset = -(handX-this._lastHandCoords[0])/s;
+                // this._rocketYOffset = -(handY-this._lastHandCoords[1])/s;
+                if(Math.abs(this._rocketXOffset) < 0.1) {
+                    this._rocketXOffset = 0;
+                }
+                // if(Math.abs(this._rocketYOffset) < 0.1) {
+                //     this._rocketYOffset = 0;
+                // }
+                this._rocketAnimationAimCoords =
+                    [
+                        this._pl1Rocket.position.x+this._rocketXOffset,
+                        // this._pl1Rocket.position.y+this._rocketYOffset
+                    ];
+                // this._rocketMoveAnimation();
+            }
+        }
+        else { return; }
+        this._lastHandCoords = [handX, handY];        
+    }
+    _mousemove(event) {
+        if(this._GESTURE_MODE) return; 
+        let 
+            x = event.clientX,
+            y = event.clientY;
+        if(!this._lastMouseX && !this._lastMouseY) {
+            this._lastMouseX = x;
+            // this._lastMouseY = y;
+            return;
+        }
+        this._rocketXOffset = -(this._lastMouseX-x)/10;
+        // this._rocketYOffset = (this._lastMouseY-y)/10;
+        this._lastMouseX = x;
+        // this._lastMouseY = y;
+    }
+    _mousedown(event) {
+        if(this._GESTURE_MODE) return;
+        if(!this._GAME_START) {
+            this._GAME_START = true;
+        }
+    }
+    _updateRockets() {
+        if(this._GESTURE_MODE) {
+
+        }
+        else {
+            if(this._PLAYER_ROLE == 1 && !this._GAME_START) {
+                // this._ball.position.set
+                //     (
+                //         this._pl1Rocket.position.x,
+                //         this._pl1Rocket.position.y+3,
+                //         this._pl1Rocket.position.z
+                //     )
+            }
+            this._pl1Rocket.position.x += this._rocketXOffset;
+            this._pl1Rocket.position.y += this._rocketYOffset;
+            this._pl2Rocket.position.x += this._rocketXOffset;
+            this._pl2Rocket.position.y += this._rocketYOffset;
+            this._rocketXOffset = 0;
+            this._rocketYOffset = 0;
+        }
+    }
+    _gravity() {
+        if(!this._GAME_START) return;
+        this._ball.position.z += this._gravSpeedZ ;
+            if (this._ball.position.z > this._table.scale.z / 2) {
+                // this._gravSpeedZ = this._gravNormalSpeedZ;
+            }
+            if(this._ball.position.z < -(this._table.scale.z / 2)) {
+                // this._gravSpeedZ = -this._gravNormalSpeedZ;
+            }
+            if(this._ball.position.y >= this._gravMaxJumpHeight) {
+                // dy = -dy;
+            }
+            this._gravDY += this._gravSpeedY;
+            this._ball.position.y -= this._gravDY;
+            if(this._gravSpeedZ < 0) {
+                if(this._ball.position.z > 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
+            else {
+                if(this._ball.position.z < 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
+            if(this._ball.position.y <= this._ball.scale.x*2) {
+                this._ball.position.y = this._ball.scale.x*2;
+                this._gravDY = -(this._gravDY);
+            }
+    }
+    _checkBallCollisions() {
+        let ballX = this._ball.position.x;
+        let ballY = this._ball.position.y;
+        let ballZ = this._ball.position.z;
+
+        // checking collision for the player 1 rocket
+        if(ballZ >= this._table.scale.z/2 && ballZ <= this._table.scale.z/2+this._ball.scale.z) {
+            let leftRocketCorner = this._pl1Rocket.position.x-this._pl1Rocket.scale.x*4;
+            let rightRocketCorner = this._pl1Rocket.position.x+this._pl1Rocket.scale.x*4;
+            if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
+                this._gravSpeedZ *= -1;
+                if(this._gravDY > 0) 
+                    this._gravDY = -this._gravDY; 
+            }
+            else {
+                this._gravDY += this._gravSpeedY;
+            }
+        }
+
+        // checking collision for the player 1 rocket
+        if(ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
+            let leftRocketCorner = this._pl1Rocket.position.x-this._pl2Rocket.scale.x*4;
+            let rightRocketCorner = this._pl1Rocket.position.x+this._pl2Rocket.scale.x*4;
+            if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
+                this._gravSpeedZ *= -1;
+                if(this._gravDY > 0) 
+                    this._gravDY = -this._gravDY; 
+            }
+            else {
+                this._gravDY += this._gravSpeedY;
+            }
+        }
+    }
+    _setPlayerRole() {
+        this._PLAYER_ROLE = 1;
+    }
+    async _getPlayerReady() {
+        return new Promise((resolve)=>{
+            const cnv = 
+                document.getElementById("videoCanvas");
+            let oldWidh = cnv.clientWidth, oldheight = cnv.cHeight;
+            // resolve();
+        });
+    }
+    _render() {
+        this._fpsCounter.begin();
+
+        this._updateRockets();
+        this._gravity();
+        this._checkBallCollisions();
+
+        this._fpsCounter.end();
+
+        requestAnimationFrame(this._render.bind(this));
+        this._renderer.render(this._scene, this._camera);
+    }
+    async load(callback) {
+        this._setPlayerRole();
+
+        // this._handDetector.load();
+        this._addLogMessage("Hand detection loaded.");
+        // this._handDetector.getCurrentState(
+            // this._getHandPrediction.bind(this), 1000/60);
+        await this._loadRocket1("./../../rocket_model/scene.gltf");
+        await this._loadRocket2("./../../rocket_model/scene.gltf");
+        this._addLogMessage("Rockets loaded.");
+        await this._loadTableSound("./../../table_sound/table_sound.mp3");
+        this._addLogMessage("Table loaded.");
+ 
+        // await this._getPlayerReady();
+        console.log("ok");
+        this._pl1Rocket.scale.set(1/4,1/4,1/4);
+        this._pl1Rocket.position.set(0, 2, this._table.scale.z/2);
+        this._pl1Rocket.rotateY(1.5);
+        this._pl2Rocket.scale.set(1/4,1/4,1/4);
+        this._pl2Rocket.position.set(0, 2, -this._table.scale.z/2);
+        this._pl2Rocket.rotateY(-1.5);
+
+        // if(this._PLAYER_ROLE == 1) 
+        //     this._ball.position.set(0,5,this._table.scale.z/2);
+        // else if(this._PLAYER_ROLE == 2) 
+        //     this._ball.position.set(0,5,-this._table.scale.z/2);
+        this._ball.scale.set(0.3, 0.3, 0.3);
+
+        this._render();
+        document.addEventListener('mousemove', this._mousemove.bind(this));
+        document.addEventListener("mousedown", this._mousedown.bind(this));        
+        callback();
+    }
+}
+},{"../detection/App":27,"stats.js":24}],31:[function(require,module,exports){
+document.addEventListener('DOMContentLoaded', ()=>{
+    const Game = require("./game/Game");
+    // app.load().then(()=>{
+    //     app.getCurrentState((data)=>{
+    //         console.log(data.directInPercent);
+    //     }, 10);
+    // });    
+    const mainContainer = document.getElementsByClassName("main")[0];
+    const loadingContainer = document.getElementsByClassName("loading")[0];
+    const startNameInput = document.getElementById("name_input");
+    startNameInput.focus();
+    const startNameInputHint = document.getElementById("name_input_hint");
+    const playAloneBtn = document.getElementById("play_alone_btn");
+    const playOnlineBtn = document.getElementById("play_online_btn");
+    const minNameLength = 5;
+    let isNameSelected = false;
+
+    const swapContainer = (past, next, speed, callback)=> {
+        past.style.opacity = 1;
+        if(next)  
+            next.style.opacity = 0;
+        let hideAnimation = setInterval(()=>{
+            past.style.opacity -= 0.05;
+            console.log("dwa");
+            if(past.style.opacity <= 0 ) {
+                clearInterval(hideAnimation);
+                past.style.display = "none";
+                if(next) {
+                    next.style.display = "block";
+                    next.style.opacity = 1;
+                    callback();
+                }
+                callback();
+            }
+        }, speed);
+    }
+
+    startNameInput.addEventListener("input", (event)=>{
+        let currentText = startNameInput.value;
+        currentText = currentText.replace(/</g, "").replace(/>/g, "")
+        startNameInput.value = currentText;
+        if(currentText.length < minNameLength) {
+            startNameInputHint.innerHTML = "Name is to small!"
+            startNameInputHint.classList.add("fail_msg");
+            startNameInputHint.classList.remove("success_msg");
+            isNameSelected = false;
+        }
+        else {
+            startNameInputHint.innerHTML = "Perfect Name"
+            startNameInputHint.classList.add("success_msg");
+            startNameInputHint.classList.remove("fail_msg");
+            isNameSelected = true;
+        }
+    });
+
+    playAloneBtn.addEventListener("click", (event)=> {
+        playAloneBtn.disabled = true;
+        swapContainer(mainContainer, null, 20, ()=>{
+            const game = new Game();
+            game.load(()=>{
+                console.log("loaded");
+            });
+        });
+    });
+
+    playOnlineBtn.addEventListener("click", (event)=> {
+        if(isNameSelected) {
+            playOnlineBtn.disabled = true;
+            swapContainer(mainContainer, loadingContainer, 20, ()=>{
+                
+            });
+        }
+        else {
+            startNameInputHint.innerHTML = "Choose correct name to play ONLINE!"
+            startNameInputHint.classList.add("fail_msg");
+            startNameInputHint.classList.remove("success_msg");
+        }
+    });
+});
+},{"./game/Game":30}]},{},[31]);

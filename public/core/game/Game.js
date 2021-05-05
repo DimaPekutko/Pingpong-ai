@@ -317,11 +317,10 @@ module.exports = class Game {
         this._addLogMessage("Hand detection loaded.");
         // this._handDetector.getCurrentState(
             // this._getHandPrediction.bind(this), 1000/60);
-
-        await this._loadRocket1("./assets/rocket_model/scene.gltf");
-        await this._loadRocket2("./assets/rocket_model/scene.gltf");
+        await this._loadRocket1("./../../rocket_model/scene.gltf");
+        await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
-        await this._loadTableSound("./assets/table_sound/table_sound.mp3");
+        await this._loadTableSound("./../../table_sound/table_sound.mp3");
         this._addLogMessage("Table loaded.");
  
         // await this._getPlayerReady();

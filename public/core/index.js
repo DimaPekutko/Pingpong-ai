@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const minNameLength = 5;
     let isNameSelected = false;
 
-
     const swapContainer = (past, next, speed, callback)=> {
         past.style.opacity = 1;
         if(next)  

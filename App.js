@@ -7,8 +7,11 @@ const io = require('socket.io')(server);
 const { exec } = require("child_process");
 const PORT = 3000;
 
+app.use(express.static(path.join(__dirname + '/public')));
+
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname + '/../index.html'));
+    res.sendFile(path.join(__dirname + '/index.html'));
+    // res.render('/../index.html')
 });
 
 // io.on('connection', (socket) => {
