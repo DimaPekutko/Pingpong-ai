@@ -53485,10 +53485,10 @@ module.exports = class Game {
     async load(callback) {
         this._setPlayerRole();
 
-        // this._handDetector.load();
+        this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        // this._handDetector.getCurrentState(
-            // this._getHandPrediction.bind(this), 1000/60);
+        this._handDetector.getCurrentState(
+            this._getHandPrediction.bind(this), 1000/60);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -53519,20 +53519,16 @@ module.exports = class Game {
 },{"../detection/App":27,"stats.js":24}],31:[function(require,module,exports){
 document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
-    // app.load().then(()=>{
-    //     app.getCurrentState((data)=>{
-    //         console.log(data.directInPercent);
-    //     }, 10);
-    // });    
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
     const startNameInput = document.getElementById("name_input");
-    startNameInput.focus();
     const startNameInputHint = document.getElementById("name_input_hint");
     const playAloneBtn = document.getElementById("play_alone_btn");
     const playOnlineBtn = document.getElementById("play_online_btn");
     const minNameLength = 5;
     let isNameSelected = false;
+
+    startNameInput.focus();
 
     const swapContainer = (past, next, speed, callback)=> {
         past.style.opacity = 1;

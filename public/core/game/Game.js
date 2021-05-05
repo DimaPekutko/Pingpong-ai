@@ -313,10 +313,10 @@ module.exports = class Game {
     async load(callback) {
         this._setPlayerRole();
 
-        // this._handDetector.load();
+        this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        // this._handDetector.getCurrentState(
-            // this._getHandPrediction.bind(this), 1000/60);
+        this._handDetector.getCurrentState(
+            this._getHandPrediction.bind(this), 1000/60);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");

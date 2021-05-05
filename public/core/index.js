@@ -1,19 +1,15 @@
 document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
-    // app.load().then(()=>{
-    //     app.getCurrentState((data)=>{
-    //         console.log(data.directInPercent);
-    //     }, 10);
-    // });    
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
     const startNameInput = document.getElementById("name_input");
-    startNameInput.focus();
     const startNameInputHint = document.getElementById("name_input_hint");
     const playAloneBtn = document.getElementById("play_alone_btn");
     const playOnlineBtn = document.getElementById("play_online_btn");
     const minNameLength = 5;
     let isNameSelected = false;
+
+    startNameInput.focus();
 
     const swapContainer = (past, next, speed, callback)=> {
         past.style.opacity = 1;
