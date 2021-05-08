@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node App.js",
+    "debug": "clear && browserify public/core/index.js -o public/main.js && node App.js",
     "release": "node App.js"
   },
   "keywords": [],

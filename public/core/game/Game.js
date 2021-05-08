@@ -80,14 +80,17 @@ module.exports = class Game {
 
         this._gravNormalSpeedZ = 0.5;
         this._gravSpeedZ = 0.5;
-        this._gravSpeedX = 0.1;
+        this._gravSpeedX = 0;
+        this._gravMinSpeedX = 0.01;
+        this._gravMaxSpeedX = 0.08;
         this._gravSpeedY = 0.01;
         this._gravDY = 0.01;
         this._gravMaxGravity = 10;
         this._gravMaxJumpHeight = 5;
 
         this._rocketXOffset = 0;
-        this._rocketYOffset = 0;
+        this._rocketYOffset = 0; 
+        this._isRocketMoving = false;
         this._lastMouseX = 0;
         this._lastMouseY = 0;
 
@@ -95,6 +98,7 @@ module.exports = class Game {
         this._rocketAnimationAimCoords = null;
 
         this._GESTURE_MODE = false;
+        this._ROCKET_SPEED_X = 0.001;
         this._PLAYER_ROLE = null;
         this._GAME_START = false;
         this._CURRENT_SCORE = [0,0];
@@ -158,11 +162,12 @@ module.exports = class Game {
     }
     _getHandPrediction(event) {
         // console.log(event);
-        let handX = event.x;
-        let handY = event.y;
+        let handX = event?.x;
+        let handY = event?.y;
         if(handX || handY) {
+            // this._isRocketMoving = true;
             // console.log(handX);
-            let s = 10;
+            let s = 5;
             if(this._lastHandCoords != null) {
                 this._rocketXOffset = -(handX-this._lastHandCoords[0])/s;
                 // this._rocketYOffset = -(handY-this._lastHandCoords[1])/s;
@@ -219,15 +224,19 @@ module.exports = class Game {
             }
             this._pl1Rocket.position.x += this._rocketXOffset;
             this._pl1Rocket.position.y += this._rocketYOffset;
-            this._pl2Rocket.position.x += this._rocketXOffset;
-            this._pl2Rocket.position.y += this._rocketYOffset;
+            this._pl2Rocket.position.x = this._ball.position.x;
+            
+            this._camera.position.x = this._pl1Rocket.position.x;
+
+            // this._pl2Rocket.position.y = this._ball.position.y;
             this._rocketXOffset = 0;
             this._rocketYOffset = 0;
         }
     }
     _gravity() {
         if(!this._GAME_START) return;
-        this._ball.position.z += this._gravSpeedZ ;
+        this._ball.position.z += this._gravSpeedZ;
+        this._ball.position.x += this._gravSpeedX;
             if (this._ball.position.z > this._table.scale.z / 2) {
                 // this._gravSpeedZ = this._gravNormalSpeedZ;
             }
@@ -254,6 +263,14 @@ module.exports = class Game {
                 this._gravDY = -(this._gravDY);
             }
     }
+    _updateBallSpeedX() {
+        let changeDirect = this._gravSpeedX > 0 ? true : false;
+        this._gravSpeedX = 
+            Math.random()*(this._gravMaxSpeedX-this._gravMinSpeedX)+this._gravMinSpeedX;
+        if(changeDirect)
+            this._gravSpeedX *= -1;
+        console.log(this._gravSpeedX);  
+    }
     _checkBallCollisions() {
         let ballX = this._ball.position.x;
         let ballY = this._ball.position.y;
@@ -264,6 +281,7 @@ module.exports = class Game {
             let leftRocketCorner = this._pl1Rocket.position.x-this._pl1Rocket.scale.x*4;
             let rightRocketCorner = this._pl1Rocket.position.x+this._pl1Rocket.scale.x*4;
             if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
+                this._updateBallSpeedX();
                 this._gravSpeedZ *= -1;
                 if(this._gravDY > 0) 
                     this._gravDY = -this._gravDY; 
@@ -274,10 +292,11 @@ module.exports = class Game {
         }
 
         // checking collision for the player 1 rocket
-        if(ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
-            let leftRocketCorner = this._pl1Rocket.position.x-this._pl2Rocket.scale.x*4;
-            let rightRocketCorner = this._pl1Rocket.position.x+this._pl2Rocket.scale.x*4;
+        else if(ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
+            let leftRocketCorner = this._pl2Rocket.position.x-this._pl2Rocket.scale.x*4;
+            let rightRocketCorner = this._pl2Rocket.position.x+this._pl2Rocket.scale.x*4;
             if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
+                this._updateBallSpeedX();
                 this._gravSpeedZ *= -1;
                 if(this._gravDY > 0) 
                     this._gravDY = -this._gravDY; 
@@ -315,8 +334,7 @@ module.exports = class Game {
 
         this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        this._handDetector.getCurrentState(
-            this._getHandPrediction.bind(this), 1000/60);
+        this._handDetector.getCurrentState(this._getHandPrediction.bind(this), 1000/30);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");

@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
+    const gameUi = document.getElementsByClassName("game_ui")[0];
     const startNameInput = document.getElementById("name_input");
     const startNameInputHint = document.getElementById("name_input_hint");
     const playAloneBtn = document.getElementById("play_alone_btn");
@@ -17,7 +18,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
             next.style.opacity = 0;
         let hideAnimation = setInterval(()=>{
             past.style.opacity -= 0.05;
-            console.log("dwa");
             if(past.style.opacity <= 0 ) {
                 clearInterval(hideAnimation);
                 past.style.display = "none";
@@ -53,8 +53,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
         playAloneBtn.disabled = true;
         swapContainer(mainContainer, null, 20, ()=>{
             const game = new Game();
+            gameUi.style.display = "block";
             game.load(()=>{
-                console.log("loaded");
+            
             });
         });
     });

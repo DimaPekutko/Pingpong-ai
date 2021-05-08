@@ -8,6 +8,11 @@ body {
     color: aquamarine;
     font-weight: bold;
     overflow-x: hidden;
+    overflow-y: hidden;
+}
+a {
+    color: aquamarine;
+    text-decoration: none;
 }
 h1 {
     font-size: 50px;
@@ -41,10 +46,11 @@ button {
     background-color: #191935;
     margin-left: auto;
     margin-right: auto;
-    left: 0;
+    /* left: 0; */
     right: 0;
+    bottom: 0;
     z-index: 9999;
-    display: none;
+    /* display: none; */
 }
 .debug_console {
     /* border: 1px solid blue; */
@@ -60,11 +66,12 @@ button {
 .container {
     width: 50%;
     height: 100vh;
-    /* position: absolute; */
+    position: fixed;
     margin-left: auto;
     margin-right: auto;
     left: 0;
     right: 0;
+    bottom: 0;
     text-align: center;
     /*     
     width: 50%;
@@ -115,9 +122,17 @@ button {
     background: darkred;
 }
 #footer_info {
-    color: rgb(19, 18, 18);
+    /* color: rgb(19, 18, 18); */
+    color: slategrey;
     position: fixed;
     bottom: 0;
     left:0;
     right: 0;
+}
+.game_ui {
+    text-align: center;
+    display: none;
+}
+.game_ui h2 {
+    /* color: ; */
 }
