@@ -2,16 +2,15 @@ const express = require('express');
 const app = express();
 const http = require('http');
 const path = require('path');
+const ServerSocket = require('./server/ServerSocket');
 const server = http.createServer(app);
-const io = require('socket.io')(server);
-const { exec } = require("child_process");
 const PORT = process.env.PORT || 8080;
+let serverSocket;
 
 app.use(express.static(path.join(__dirname + '/public')));
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname + '/index.html'));
-    // res.render('/../index.html')
 });
 
 // io.on('connection', (socket) => {
@@ -24,7 +23,5 @@ app.get('/', (req, res) => {
 
 server.listen(PORT, () => {
   console.log('Listening on port: ' + PORT);
- 
-  // for testing
-  // exec("google-chrome 127.0.0.1:" + PORT);
+  serverSocket = new ServerSocket(server);
 });

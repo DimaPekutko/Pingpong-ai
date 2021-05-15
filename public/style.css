@@ -133,6 +133,12 @@ button {
     text-align: center;
     display: none;
 }
-.game_ui h2 {
-    /* color: ; */
+#game_main_message {
+    font-size: 45px;
+    background: -webkit-linear-gradient(rgb(255, 43, 43), aquamarine);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: absolute;
+    left: 0;
+    right: 0;
 }

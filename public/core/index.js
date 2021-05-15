@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
+    const ClientSocket = require("./game/multiplayer/ClientSocket");
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
     const gameUi = document.getElementsByClassName("game_ui")[0];
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
                     next.style.display = "block";
                     next.style.opacity = 1;
                     callback();
+                    return;
                 }
                 callback();
             }
@@ -64,7 +66,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(isNameSelected) {
             playOnlineBtn.disabled = true;
             swapContainer(mainContainer, loadingContainer, 20, ()=>{
-                
+                let clientSocket = new ClientSocket(startNameInput.value);
+                clientSocket.onStartGame((role)=>{
+                    swapContainer(loadingContainer, null, 20, ()=>{
+                        const game = new Game();
+                        gameUi.style.display = "block";
+                        game.load(()=>{
+                        
+                        });
+                    });
+                }); 
             });
         }
         else {

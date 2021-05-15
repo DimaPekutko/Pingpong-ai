@@ -4,6 +4,8 @@ const Stats = require("stats.js");
 module.exports = class Game {
     constructor() {
         this._debugConsoleLogs = document.getElementById("debug_console_logs");
+        this._scoreElement = document.getElementById("score_value");
+        this._gameMainMessage = document.getElementById("game_main_message");
 
         this._handDetector = new HandRecognition();
 
@@ -78,6 +80,20 @@ module.exports = class Game {
         this._scene.add(this._tableGrid);
         this._scene.add(this._ball);
 
+        this._setStartGravity();
+
+        this._lastHandCoords = null;
+        this._rocketAnimationAimCoords = null;
+
+        this._GESTURE_MODE = false;
+        this._ROCKET_SPEED_X = 0.001;
+        this._PLAYER_ROLE = null;
+        this._GAME_START = false;
+        this._CURRENT_SCORE = [0,0];
+        this._MAX_SCORE_VALUE = 3;
+
+    }
+    _setStartGravity() {
         this._gravNormalSpeedZ = 0.5;
         this._gravSpeedZ = 0.5;
         this._gravSpeedX = 0;
@@ -93,15 +109,6 @@ module.exports = class Game {
         this._isRocketMoving = false;
         this._lastMouseX = 0;
         this._lastMouseY = 0;
-
-        this._lastHandCoords = null;
-        this._rocketAnimationAimCoords = null;
-
-        this._GESTURE_MODE = false;
-        this._ROCKET_SPEED_X = 0.001;
-        this._PLAYER_ROLE = null;
-        this._GAME_START = false;
-        this._CURRENT_SCORE = [0,0];
     }
     _addLogMessage(message) {
         this._debugConsoleLogs.innerHTML += ("<br>"+message);
@@ -162,6 +169,9 @@ module.exports = class Game {
     }
     _getHandPrediction(event) {
         // console.log(event);
+        let status = event.status;
+        if(status == "waiting")
+            return;
         let handX = event?.x;
         let handY = event?.y;
         if(handX || handY) {
@@ -207,6 +217,7 @@ module.exports = class Game {
         if(this._GESTURE_MODE) return;
         if(!this._GAME_START) {
             this._GAME_START = true;
+            this._gameMainMessage.innerHTML = "";
         }
     }
     _updateRockets() {
@@ -271,6 +282,29 @@ module.exports = class Game {
             this._gravSpeedX *= -1;
         console.log(this._gravSpeedX);  
     }
+    _updateScoreElement(player) {
+        if(player == 1) {
+            this._gameMainMessage.innerHTML = "Player 1 win a point!"
+        }
+        else if(player == 2) {
+            this._gameMainMessage.innerHTML = "Player 2 win a point!"
+        }
+        if(this._CURRENT_SCORE[0] == this._MAX_SCORE_VALUE) {
+            this._gameMainMessage.innerHTML = "Player 1 win!"
+        }
+        else if(this._CURRENT_SCORE[1] == this._MAX_SCORE_VALUE) {
+            this._gameMainMessage.innerHTML = "Player 2 win!"
+        }
+        else {
+            this._GAME_START = false;
+            this._ball.position.x = 0;
+            this._ball.position.y = 10;
+            this._ball.position.z = 0;
+            this._setStartGravity();
+        }
+        this._scoreElement.innerHTML = 
+            this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
+    }
     _checkBallCollisions() {
         let ballX = this._ball.position.x;
         let ballY = this._ball.position.y;
@@ -288,6 +322,8 @@ module.exports = class Game {
             }
             else {
                 this._gravDY += this._gravSpeedY;
+                this._CURRENT_SCORE[1]++;
+                this._updateScoreElement(2);
             }
         }
 
@@ -303,8 +339,11 @@ module.exports = class Game {
             }
             else {
                 this._gravDY += this._gravSpeedY;
+                this._CURRENT_SCORE[0]++;
+                this._updateScoreElement(1);
             }
         }
+
     }
     _setPlayerRole() {
         this._PLAYER_ROLE = 1;
@@ -334,7 +373,8 @@ module.exports = class Game {
 
         this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        this._handDetector.getCurrentState(this._getHandPrediction.bind(this), 1000/30);
+        this._handDetector.getCurrentState(
+            this._getHandPrediction.bind(this), 1000/30);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -342,7 +382,6 @@ module.exports = class Game {
         this._addLogMessage("Table loaded.");
  
         // await this._getPlayerReady();
-        console.log("ok");
         this._pl1Rocket.scale.set(1/4,1/4,1/4);
         this._pl1Rocket.position.set(0, 2, this._table.scale.z/2);
         this._pl1Rocket.rotateY(1.5);
