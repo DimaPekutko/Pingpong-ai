@@ -220,7 +220,7 @@ module.exports = class Game {
         this._pl1Rocket.position.x += this._rocketXOffset;
         this._pl1Rocket.position.y += this._rocketYOffset;
         this._pl2Rocket.position.x = this._ball.position.x;
-            
+        
         this._camera.position.x = this._pl1Rocket.position.x;
 
         // this._pl2Rocket.position.y = this._ball.position.y;
