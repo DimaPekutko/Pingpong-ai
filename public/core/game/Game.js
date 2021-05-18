@@ -40,10 +40,6 @@ module.exports = class Game {
 
         this._renderer.setClearColor( "black", 1 );
 
-        this._camera.position.x = 0;
-        this._camera.position.y = 5;
-        this._camera.position.z = 25;
-
         // this._camera.position.x = 25;
         // this._camera.position.y = 3;
         // this._camera.position.z = 0;
@@ -221,28 +217,15 @@ module.exports = class Game {
         }
     }
     _updateRockets() {
-        if(this._GESTURE_MODE) {
-
-        }
-        else {
-            if(this._PLAYER_ROLE == 1 && !this._GAME_START) {
-                // this._ball.position.set
-                //     (
-                //         this._pl1Rocket.position.x,
-                //         this._pl1Rocket.position.y+3,
-                //         this._pl1Rocket.position.z
-                //     )
-            }
-            this._pl1Rocket.position.x += this._rocketXOffset;
-            this._pl1Rocket.position.y += this._rocketYOffset;
-            this._pl2Rocket.position.x = this._ball.position.x;
+        this._pl1Rocket.position.x += this._rocketXOffset;
+        this._pl1Rocket.position.y += this._rocketYOffset;
+        this._pl2Rocket.position.x = this._ball.position.x;
             
-            this._camera.position.x = this._pl1Rocket.position.x;
+        this._camera.position.x = this._pl1Rocket.position.x;
 
-            // this._pl2Rocket.position.y = this._ball.position.y;
-            this._rocketXOffset = 0;
-            this._rocketYOffset = 0;
-        }
+        // this._pl2Rocket.position.y = this._ball.position.y;
+        this._rocketXOffset = 0;
+        this._rocketYOffset = 0;
     }
     _gravity() {
         if(!this._GAME_START) return;
@@ -345,8 +328,19 @@ module.exports = class Game {
         }
 
     }
-    _setPlayerRole() {
-        this._PLAYER_ROLE = 1;
+    _setPlayerRole(role=1) {
+        this._PLAYER_ROLE = role;
+        if(role == 1) {
+            this._camera.position.x = 0;
+            this._camera.position.y = 5;
+            this._camera.position.z = 25;
+        }
+        else if(role == 2) {
+            this._camera.position.x = 0;
+            this._camera.position.y = 5;
+            this._camera.position.z = -25;
+            this._camera.rotateY(3.14159);
+        }
     }
     async _getPlayerReady() {
         return new Promise((resolve)=>{
@@ -368,13 +362,13 @@ module.exports = class Game {
         requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
     }
-    async load(callback) {
-        this._setPlayerRole();
+    async load(callback, playerRole) {
+        this._setPlayerRole(playerRole)
 
-        this._handDetector.load();
+        // this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        this._handDetector.getCurrentState(
-            this._getHandPrediction.bind(this), 1000/30);
+        // this._handDetector.getCurrentState(
+            // this._getHandPrediction.bind(this), 1000/30);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");

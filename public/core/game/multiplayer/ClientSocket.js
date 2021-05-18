@@ -10,9 +10,22 @@ module.exports = class ClientSocket {
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
             this._playerRole = data.role;
-            this._roomName = data.roomName
-            console.log(this._socket);
+            this._roomName = data.roomName;
             callback(this._playerRole);
         });        
+    }
+    onUpdateRocketPos(callback) {
+        this._socket.on("update_rocket_pos", (data)=>{
+            callback(data);
+        });
+    }
+    getSocket() {
+        return this._socket;
+    }
+    getRole() {
+        return this._playerRole;
+    }
+    getRoomName() {
+        return this._roomName;
     }
 }

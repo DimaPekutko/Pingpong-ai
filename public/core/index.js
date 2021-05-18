@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
+    const MultiplayerGame = require("./game/multiplayer/MultiplayerGame");
     const ClientSocket = require("./game/multiplayer/ClientSocket");
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
@@ -57,8 +58,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const game = new Game();
             gameUi.style.display = "block";
             game.load(()=>{
-            
-            });
+
+            }, 1);
         });
     });
 
@@ -69,11 +70,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 let clientSocket = new ClientSocket(startNameInput.value);
                 clientSocket.onStartGame((role)=>{
                     swapContainer(loadingContainer, null, 20, ()=>{
-                        const game = new Game();
+                        const game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
                         game.load(()=>{
-                        
-                        });
+
+                        }, clientSocket.getRole());
                     });
                 }); 
             });

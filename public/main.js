@@ -67394,10 +67394,6 @@ module.exports = class Game {
 
         this._renderer.setClearColor( "black", 1 );
 
-        this._camera.position.x = 0;
-        this._camera.position.y = 5;
-        this._camera.position.z = 25;
-
         // this._camera.position.x = 25;
         // this._camera.position.y = 3;
         // this._camera.position.z = 0;
@@ -67575,28 +67571,15 @@ module.exports = class Game {
         }
     }
     _updateRockets() {
-        if(this._GESTURE_MODE) {
-
-        }
-        else {
-            if(this._PLAYER_ROLE == 1 && !this._GAME_START) {
-                // this._ball.position.set
-                //     (
-                //         this._pl1Rocket.position.x,
-                //         this._pl1Rocket.position.y+3,
-                //         this._pl1Rocket.position.z
-                //     )
-            }
-            this._pl1Rocket.position.x += this._rocketXOffset;
-            this._pl1Rocket.position.y += this._rocketYOffset;
-            this._pl2Rocket.position.x = this._ball.position.x;
+        this._pl1Rocket.position.x += this._rocketXOffset;
+        this._pl1Rocket.position.y += this._rocketYOffset;
+        this._pl2Rocket.position.x = this._ball.position.x;
             
-            this._camera.position.x = this._pl1Rocket.position.x;
+        this._camera.position.x = this._pl1Rocket.position.x;
 
-            // this._pl2Rocket.position.y = this._ball.position.y;
-            this._rocketXOffset = 0;
-            this._rocketYOffset = 0;
-        }
+        // this._pl2Rocket.position.y = this._ball.position.y;
+        this._rocketXOffset = 0;
+        this._rocketYOffset = 0;
     }
     _gravity() {
         if(!this._GAME_START) return;
@@ -67699,8 +67682,19 @@ module.exports = class Game {
         }
 
     }
-    _setPlayerRole() {
-        this._PLAYER_ROLE = 1;
+    _setPlayerRole(role=1) {
+        this._PLAYER_ROLE = role;
+        if(role == 1) {
+            this._camera.position.x = 0;
+            this._camera.position.y = 5;
+            this._camera.position.z = 25;
+        }
+        else if(role == 2) {
+            this._camera.position.x = 0;
+            this._camera.position.y = 5;
+            this._camera.position.z = -25;
+            this._camera.rotateY(3.14159);
+        }
     }
     async _getPlayerReady() {
         return new Promise((resolve)=>{
@@ -67722,13 +67716,13 @@ module.exports = class Game {
         requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
     }
-    async load(callback) {
-        this._setPlayerRole();
+    async load(callback, playerRole) {
+        this._setPlayerRole(playerRole)
 
-        this._handDetector.load();
+        // this._handDetector.load();
         this._addLogMessage("Hand detection loaded.");
-        this._handDetector.getCurrentState(
-            this._getHandPrediction.bind(this), 1000/30);
+        // this._handDetector.getCurrentState(
+            // this._getHandPrediction.bind(this), 1000/30);
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -67768,15 +67762,82 @@ module.exports = class ClientSocket {
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
             this._playerRole = data.role;
-            this._roomName = data.roomName
-            console.log(this._socket);
+            this._roomName = data.roomName;
             callback(this._playerRole);
         });        
     }
+    onUpdateRocketPos(callback) {
+        this._socket.on("update_rocket_pos", (data)=>{
+            callback(data);
+        });
+    }
+    getSocket() {
+        return this._socket;
+    }
+    getRole() {
+        return this._playerRole;
+    }
+    getRoomName() {
+        return this._roomName;
+    }
 }
 },{"socket.io-client":50}],74:[function(require,module,exports){
+const Game = require("./../Game");
+
+module.exports = class MultiplayerGame extends Game {
+    constructor(clientSocket) {
+        super();
+        this._clientSocket = clientSocket;
+        this._clientSocket.onUpdateRocketPos(this._updateRockets.bind(this));
+    }
+    _updateRockets(data=null) {
+        if(!data) {
+            let role = this._PLAYER_ROLE;
+            let xOffset = this._rocketXOffset;
+            // let yOffset = this._rocketYOffset;
+            
+            if(xOffset) {
+                this._clientSocket.getSocket().emit("update_rocket_pos", {
+                    playerRole: role,
+                    xOffset: xOffset,
+                    // yOffset: yOffset
+                });
+            }
+
+            this._rocketXOffset = 0;
+            // this._rocketYOffset = 0;
+        }
+        else {
+            if(data.playerRole == 1) {
+                this._pl1Rocket.position.x += data.xOffset;
+                // this._pl1Rocket.position.y += data.yOffset;
+                this._camera.position.x = this._pl1Rocket.position.x;
+            }
+            else if(data.playerRole == 2) {
+                this._pl2Rocket.position.x += data.xOffset;
+                // this._pl2Rocket.position.y += data.yOffset;
+                this._camera.position.x = this._pl2Rocket.position.x;
+            }
+        }
+        
+        // this._pl1Rocket.position.x += this._rocketXOffset;
+        // this._pl1Rocket.position.y += this._rocketYOffset;
+        // this._pl2Rocket.position.x = this._ball.position.x;
+            
+        // this._camera.position.x = this._pl1Rocket.position.x;
+
+        // this._pl2Rocket.position.y = this._ball.position.y;
+        // this._rocketXOffset = 0;
+        // this._rocketYOffset = 0;
+    }
+    // _checkBallCollisions() {
+    //     // return 0;
+    // }
+}
+},{"./../Game":72}],75:[function(require,module,exports){
 document.addEventListener('DOMContentLoaded', ()=>{
     const Game = require("./game/Game");
+    const MultiplayerGame = require("./game/multiplayer/MultiplayerGame");
     const ClientSocket = require("./game/multiplayer/ClientSocket");
     const mainContainer = document.getElementsByClassName("main")[0];
     const loadingContainer = document.getElementsByClassName("loading")[0];
@@ -67834,8 +67895,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const game = new Game();
             gameUi.style.display = "block";
             game.load(()=>{
-            
-            });
+
+            }, 1);
         });
     });
 
@@ -67846,11 +67907,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 let clientSocket = new ClientSocket(startNameInput.value);
                 clientSocket.onStartGame((role)=>{
                     swapContainer(loadingContainer, null, 20, ()=>{
-                        const game = new Game();
+                        const game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
                         game.load(()=>{
-                        
-                        });
+
+                        }, clientSocket.getRole());
                     });
                 }); 
             });
@@ -67862,4 +67923,4 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
     });
 });
-},{"./game/Game":72,"./game/multiplayer/ClientSocket":73}]},{},[74]);
+},{"./game/Game":72,"./game/multiplayer/ClientSocket":73,"./game/multiplayer/MultiplayerGame":74}]},{},[75]);

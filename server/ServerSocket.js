@@ -9,13 +9,18 @@ module.exports = class ServerSocket {
             `New user connected: ${socket.handshake.query.username} ${socket.id}`);
 
         socket.on('disconnect', ()=>{
-            console.log(`disconnect ${socket.id}`);
+            console.log(
+                `User disconnected: ${socket.id}`);
             for(let i = 0; i < this._waitingUsersList.length; i++) {
                 if(this._waitingUsersList[i].socket.id == socket.id) {
                     this._waitingUsersList.splice(i, 1);
                     break;       
                 }
             }
+        });
+
+        socket.on("update_rocket_pos", (data)=>{
+            this._io.emit("update_rocket_pos", data);
         });
 
         this._waitingUsersList.push({
@@ -33,6 +38,6 @@ module.exports = class ServerSocket {
         player2.join(roomName);
         this._io.to(player1.id).emit("start_game", {role: 1, roomName: roomName});
         this._io.to(player2.id).emit("start_game", {role: 2, roomName: roomName});
-        
+        console.log(`New room created: ${roomName}`);
     }
 }
