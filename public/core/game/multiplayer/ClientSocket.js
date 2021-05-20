@@ -19,6 +19,11 @@ module.exports = class ClientSocket {
             callback(data);
         });
     }
+    onUpdateBallPos(callback) {
+        this._socket.on("update_ball_pos", (data)=>{
+            callback(data);
+        });
+    }
     getSocket() {
         return this._socket;
     }

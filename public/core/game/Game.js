@@ -211,7 +211,7 @@ module.exports = class Game {
     }
     _mousedown(event) {
         if(this._GESTURE_MODE) return;
-        if(!this._GAME_START) {
+        if(!this._GAME_START && this._PLAYER_ROLE == 1) {
             this._GAME_START = true;
             this._gameMainMessage.innerHTML = "";
         }
@@ -227,21 +227,27 @@ module.exports = class Game {
         this._rocketXOffset = 0;
         this._rocketYOffset = 0;
     }
-    _gravity() {
-        if(!this._GAME_START) return;
+    _updateBall() {
         this._ball.position.z += this._gravSpeedZ;
         this._ball.position.x += this._gravSpeedX;
-            if (this._ball.position.z > this._table.scale.z / 2) {
-                // this._gravSpeedZ = this._gravNormalSpeedZ;
-            }
-            if(this._ball.position.z < -(this._table.scale.z / 2)) {
-                // this._gravSpeedZ = -this._gravNormalSpeedZ;
-            }
-            if(this._ball.position.y >= this._gravMaxJumpHeight) {
-                // dy = -dy;
-            }
+        this._ball.position.y -= this._gravDY;
+        if(this._ball.position.y <= this._ball.scale.x*2) {
+            this._ball.position.y = this._ball.scale.x*2;
+            this._gravDY = -(this._gravDY);
+        }
+    }
+    _gravity() {
+            // if (this._ball.position.z > this._table.scale.z / 2) {
+            //     // this._gravSpeedZ = this._gravNormalSpeedZ;
+            // }
+            // if(this._ball.position.z < -(this._table.scale.z / 2)) {
+            //     // this._gravSpeedZ = -this._gravNormalSpeedZ;
+            // }
+            // if(this._ball.position.y >= this._gravMaxJumpHeight) {
+            //     // dy = -dy;
+            // }            
+
             this._gravDY += this._gravSpeedY;
-            this._ball.position.y -= this._gravDY;
             if(this._gravSpeedZ < 0) {
                 if(this._ball.position.z > 0) {
                     this._gravDY += this._gravSpeedY;
@@ -252,10 +258,6 @@ module.exports = class Game {
                     this._gravDY += this._gravSpeedY;
                 }
             }
-            if(this._ball.position.y <= this._ball.scale.x*2) {
-                this._ball.position.y = this._ball.scale.x*2;
-                this._gravDY = -(this._gravDY);
-            }
     }
     _updateBallSpeedX() {
         let changeDirect = this._gravSpeedX > 0 ? true : false;
@@ -263,7 +265,6 @@ module.exports = class Game {
             Math.random()*(this._gravMaxSpeedX-this._gravMinSpeedX)+this._gravMinSpeedX;
         if(changeDirect)
             this._gravSpeedX *= -1;
-        console.log(this._gravSpeedX);  
     }
     _updateScoreElement(player) {
         if(player == 1) {
@@ -289,6 +290,7 @@ module.exports = class Game {
             this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
     }
     _checkBallCollisions() {
+
         let ballX = this._ball.position.x;
         let ballY = this._ball.position.y;
         let ballZ = this._ball.position.z;
@@ -352,10 +354,13 @@ module.exports = class Game {
     }
     _render() {
         this._fpsCounter.begin();
-
+        
         this._updateRockets();
-        this._gravity();
-        this._checkBallCollisions();
+        if(this._GAME_START) {
+            this._updateBall();
+            this._gravity();
+            this._checkBallCollisions();
+        }
 
         this._fpsCounter.end();
 

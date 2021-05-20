@@ -20,7 +20,19 @@ module.exports = class ServerSocket {
         });
 
         socket.on("update_rocket_pos", (data)=>{
-            this._io.emit("update_rocket_pos", data);
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room  != socket.id) 
+                    return this._io.to(room).emit("update_rocket_pos", data);
+            }
+        });
+
+        socket.on("update_ball_pos", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room  != socket.id) 
+                    return this._io.to(room).emit("update_ball_pos", data);
+            }
         });
 
         this._waitingUsersList.push({
@@ -31,8 +43,8 @@ module.exports = class ServerSocket {
             this._startGame();
     }
     _startGame() {
-        let player1 = this._waitingUsersList.pop().socket;
-        let player2 = this._waitingUsersList.pop().socket;
+        let player1 = this._waitingUsersList.shift().socket;
+        let player2 = this._waitingUsersList.shift().socket;
         let roomName = player1.id+player2.id;
         player1.join(roomName);
         player2.join(roomName);
