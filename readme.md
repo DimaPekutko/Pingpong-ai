@@ -1,51 +1,33 @@
 # PingPong-AI
 ## _Javascript ping-pong game using fingerpose_
 
-This is a simple 3d game created in javascript, which uses a human hand as a controller using the fingerpose library
+This is a simple 3d game created in javascript, which uses a human hand as a controller using the fingerpose.js library. 
 https://pingpong-ai.herokuapp.com/
 
-- Type some Markdown on the left
-- See HTML in the right
+- Just open the app
+- Start the game
+-  Accept the camera 
 - ✨Magic ✨
 
 ## Features
 
-- Import a HTML file and watch it magically convert to Markdown
-- Drag and drop images (requires your Dropbox account be linked)
-- Import and save files from GitHub, Dropbox, Google Drive and One Drive
-- Drag and drop markdown and HTML files into Dillinger
-- Export documents as Markdown, HTML and PDF
+- Just a singleplayer with invincible bot
+- Interactive gesture mode
+- Try yourself at multriplayer game
 
-Markdown is a lightweight markup language based on the formatting conventions
-that people naturally use in email.
-As [John Gruber] writes on the [Markdown site][df1]
-
-> The overriding design goal for Markdown's
-> formatting syntax is to make it as readable
-> as possible. The idea is that a
-> Markdown-formatted document should be
-> publishable as-is, as plain text, without
-> looking like it's been marked up with tags
-> or formatting instructions.
-
-This text you see here is *actually- written in Markdown! To get a feel
-for Markdown's syntax, type some text into the left window and
-watch the results in the right.
+This game is just my experimental expirience with strange connection Three.js with fingerpose library in browser.
 
 ## Tech
 
-Dillinger uses a number of open source projects to work properly:
+Pingpong-AI uses a number of open source projects to work properly:
 
-- [AngularJS] - HTML enhanced for web apps!
-- [Ace Editor] - awesome web-based text editor
-- [markdown-it] - Markdown parser done right. Fast and easy to extend.
-- [Twitter Bootstrap] - great UI boilerplate for modern web apps
-- [node.js] - evented I/O for the backend
+- [Three.js] - Makes 3d graphics easy in browser
+- [Browserify] - Browserify lets you require('modules') in the browser by bundling up all of your dependencies.
+- [Tensorflow] - End-to-end open source platform for machine learning
+- [Fingerpose] - Finger pose classifier for hand landmarks detected by TensorFlow.js' handpose model. 
+- [Node.js] - evented I/O for the backend
 - [Express] - fast node.js network app framework [@tjholowaychuk]
-- [Gulp] - the streaming build system
-- [Breakdance](https://breakdance.github.io/breakdance/) - HTML
-to Markdown converter
-- [jQuery] - duh
+- [Socket.io] -  Enables real-time, bidirectional and event-based communication.
 
 And of course Dillinger itself is open source with a [public repository][dill]
  on GitHub.
@@ -166,19 +148,21 @@ MIT
 
 [//]: # (These are reference links used in the body of this note and get stripped out when the markdown processor does its job. There is no need to format nicely because it shouldn't be seen. Thanks SO - http://stackoverflow.com/questions/4823468/store-comments-in-markdown-syntax)
 
-   [dill]: <https://github.com/joemccann/dillinger>
-   [git-repo-url]: <https://github.com/joemccann/dillinger.git>
-   [john gruber]: <http://daringfireball.net>
-   [df1]: <http://daringfireball.net/projects/markdown/>
-   [markdown-it]: <https://github.com/markdown-it/markdown-it>
-   [Ace Editor]: <http://ace.ajax.org>
-   [node.js]: <http://nodejs.org>
-   [Twitter Bootstrap]: <http://twitter.github.com/bootstrap/>
-   [jQuery]: <http://jquery.com>
-   [@tjholowaychuk]: <http://twitter.com/tjholowaychuk>
-   [express]: <http://expressjs.com>
-   [AngularJS]: <http://angularjs.org>
-   [Gulp]: <http://gulpjs.com>
+  - [Three.js] - Makes 3d graphics easy in browser
+- [Browserify] - Browserify lets you require('modules') in the browser by bundling up all of your dependencies.
+- [Tensorflow] - End-to-end open source platform for machine learning
+- [Fingerpose] - Finger pose classifier for hand landmarks detected by TensorFlow.js' handpose model. 
+- [Node.js] - evented I/O for the backend
+- [Express] - fast node.js network app framework [@tjholowaychuk]
+- [Socket.io] -  Enables real-time, bidirectional and event-based communication.
+- 
+   [Three.js]: <http://threejs.org>
+   [Browserify]: <http://browserify.org>
+   [Tensorflow]: <http://tensorflow.org>
+   [Fingerpose]: <http://github.com/andypotato/fingerpose>
+   [Node.js]: <http://nodejs.org>
+   [Express]: <http://expressjs.com>
+   [Socket.io]: <http://socket.io>
 
    [PlDb]: <https://github.com/joemccann/dillinger/tree/master/plugins/dropbox/README.md>
    [PlGh]: <https://github.com/joemccann/dillinger/tree/master/plugins/github/README.md>

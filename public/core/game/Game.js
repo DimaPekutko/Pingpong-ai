@@ -2,7 +2,7 @@ const HandRecognition = require("../detection/App");
 const Stats = require("stats.js");
 
 module.exports = class Game {
-    constructor() {
+    constructor(gesture_mode = true) {
         this._debugConsoleLogs = document.getElementById("debug_console_logs");
         this._scoreElement = document.getElementById("score_value");
         this._gameMainMessage = document.getElementById("game_main_message");
@@ -35,6 +35,8 @@ module.exports = class Game {
         this._tableSound = new THREE.Audio(this._audioListener);
         this._audioLoader = new THREE.AudioLoader();
     
+        this._gameLoop = null;
+
         this._renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this._renderer.domElement);
 
@@ -81,13 +83,15 @@ module.exports = class Game {
         this._lastHandCoords = null;
         this._rocketAnimationAimCoords = null;
 
-        this._GESTURE_MODE = false;
+        this._GESTURE_MODE = gesture_mode;
         this._ROCKET_SPEED_X = 0.001;
         this._PLAYER_ROLE = null;
         this._GAME_START = false;
+        this._GAME_ENDED = false;
         this._CURRENT_SCORE = [0,0];
-        this._MAX_SCORE_VALUE = 3;
+        this._MAX_SCORE_VALUE = 1;
 
+        this._exitGame = null;
     }
     _setStartGravity() {
         this._gravNormalSpeedZ = 0.5;
@@ -216,6 +220,13 @@ module.exports = class Game {
             this._gameMainMessage.innerHTML = "";
         }
     }
+    _spaceDown(event) {
+        //key code 32 = space
+        if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
+            this._GAME_START = true;
+            this._gameMainMessage.innerHTML = "";
+        }
+    }
     _updateRockets() {
         this._pl1Rocket.position.x += this._rocketXOffset;
         this._pl1Rocket.position.y += this._rocketYOffset;
@@ -235,6 +246,17 @@ module.exports = class Game {
             this._ball.position.y = this._ball.scale.x*2;
             this._gravDY = -(this._gravDY);
         }
+        this._gravDY += this._gravSpeedY;
+            if(this._gravSpeedZ < 0) {
+                if(this._ball.position.z > 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
+            else {
+                if(this._ball.position.z < 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
     }
     _gravity() {
             // if (this._ball.position.z > this._table.scale.z / 2) {
@@ -247,17 +269,6 @@ module.exports = class Game {
             //     // dy = -dy;
             // }            
 
-            this._gravDY += this._gravSpeedY;
-            if(this._gravSpeedZ < 0) {
-                if(this._ball.position.z > 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
-            else {
-                if(this._ball.position.z < 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
     }
     _updateBallSpeedX() {
         let changeDirect = this._gravSpeedX > 0 ? true : false;
@@ -275,9 +286,11 @@ module.exports = class Game {
         }
         if(this._CURRENT_SCORE[0] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 1 win!"
+            return this._finishGame();
         }
         else if(this._CURRENT_SCORE[1] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 2 win!"
+            return this._finishGame();
         }
         else {
             this._GAME_START = false;
@@ -288,6 +301,21 @@ module.exports = class Game {
         }
         this._scoreElement.innerHTML = 
             this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
+    }
+    _finishGame() {
+        this._GAME_ENDED = true;
+        if(this._GESTURE_MODE) {
+            this._handDetector.finish();
+            this._handDetector = null;
+        }
+        document.removeEventListener('mousemove', this._mousemove);
+        document.removeEventListener("keydown", this._spaceDown);
+        console.log(this._gameLoop);
+        cancelAnimationFrame(this._gameLoop);
+        this._gameLoop = null;
+        this._debugConsoleLogs.innerHTML = "";
+        this._gameMainMessage.innerHTML = "";
+        this._exitGame(this._renderer.domElement);
     }
     _checkBallCollisions() {
 
@@ -328,7 +356,6 @@ module.exports = class Game {
                 this._updateScoreElement(1);
             }
         }
-
     }
     _setPlayerRole(role=1) {
         this._PLAYER_ROLE = role;
@@ -353,27 +380,32 @@ module.exports = class Game {
         });
     }
     _render() {
+        console.log("?");
         this._fpsCounter.begin();
         
-        this._updateRockets();
-        if(this._GAME_START) {
-            this._updateBall();
-            this._gravity();
-            this._checkBallCollisions();
+        if(!this._GAME_ENDED) {
+            this._updateRockets();
+            if(this._GAME_START) {
+                this._updateBall();
+                this._gravity();
+                this._checkBallCollisions();
+            }
         }
 
         this._fpsCounter.end();
 
-        requestAnimationFrame(this._render.bind(this));
+        this._gameLoop = requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
     }
     async load(callback, playerRole) {
         this._setPlayerRole(playerRole)
 
-        // this._handDetector.load();
-        this._addLogMessage("Hand detection loaded.");
-        // this._handDetector.getCurrentState(
-            // this._getHandPrediction.bind(this), 1000/30);
+        if(this._GESTURE_MODE) {
+            this._handDetector.load();
+            this._addLogMessage("Hand detection loaded.");
+            this._handDetector.getCurrentState(
+                this._getHandPrediction.bind(this), 1000/30);
+        }
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -396,7 +428,11 @@ module.exports = class Game {
 
         this._render();
         document.addEventListener('mousemove', this._mousemove.bind(this));
-        document.addEventListener("mousedown", this._mousedown.bind(this));        
+        // document.addEventListener("mousedown", this._mousedown.bind(this));
+        document.addEventListener("keydown", this._spaceDown.bind(this));        
         callback();
+    }
+    async onFinish(callback) {
+        this._exitGame = callback;
     }
 }

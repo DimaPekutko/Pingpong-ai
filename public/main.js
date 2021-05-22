@@ -67152,6 +67152,8 @@ module.exports = class App {
             }
         };
 
+        this.getCurrentStateInterval = null;
+
         /* afkScore need to execute model mistake (sometimes it don't
         recognise a hand). If afkScore is under 3, then person just took 
         his hand away */
@@ -67168,6 +67170,14 @@ module.exports = class App {
             videoCanvas.style.display = "block";
             this.changeCanvas();
         });
+    }
+    async finish() {
+        this.videoElement.srcObject.getTracks()[0].stop();
+        clearInterval(this.getCurrentStateInterval);
+        this.detectionModelWorker.removeEventListener("message", this.onDetect);
+        this.detectionModelWorker.terminate();
+        this.getCurrentState = null;
+        console.log("finished");
     }
     async detectHand() {
         const canvas = document.createElement("canvas");
@@ -67205,7 +67215,7 @@ module.exports = class App {
         this.detectHand();
     }
     getCurrentState(callback, speed) {
-        setInterval(() => {
+        this.getCurrentStateInterval = setInterval(() => {
             callback(this.currentState);
         }, speed);
     }
@@ -67356,7 +67366,7 @@ const HandRecognition = require("../detection/App");
 const Stats = require("stats.js");
 
 module.exports = class Game {
-    constructor() {
+    constructor(gesture_mode = true) {
         this._debugConsoleLogs = document.getElementById("debug_console_logs");
         this._scoreElement = document.getElementById("score_value");
         this._gameMainMessage = document.getElementById("game_main_message");
@@ -67389,6 +67399,8 @@ module.exports = class Game {
         this._tableSound = new THREE.Audio(this._audioListener);
         this._audioLoader = new THREE.AudioLoader();
     
+        this._gameLoop = null;
+
         this._renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this._renderer.domElement);
 
@@ -67435,13 +67447,15 @@ module.exports = class Game {
         this._lastHandCoords = null;
         this._rocketAnimationAimCoords = null;
 
-        this._GESTURE_MODE = false;
+        this._GESTURE_MODE = gesture_mode;
         this._ROCKET_SPEED_X = 0.001;
         this._PLAYER_ROLE = null;
         this._GAME_START = false;
+        this._GAME_ENDED = false;
         this._CURRENT_SCORE = [0,0];
-        this._MAX_SCORE_VALUE = 3;
+        this._MAX_SCORE_VALUE = 1;
 
+        this._exitGame = null;
     }
     _setStartGravity() {
         this._gravNormalSpeedZ = 0.5;
@@ -67570,6 +67584,13 @@ module.exports = class Game {
             this._gameMainMessage.innerHTML = "";
         }
     }
+    _spaceDown(event) {
+        //key code 32 = space
+        if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
+            this._GAME_START = true;
+            this._gameMainMessage.innerHTML = "";
+        }
+    }
     _updateRockets() {
         this._pl1Rocket.position.x += this._rocketXOffset;
         this._pl1Rocket.position.y += this._rocketYOffset;
@@ -67589,6 +67610,17 @@ module.exports = class Game {
             this._ball.position.y = this._ball.scale.x*2;
             this._gravDY = -(this._gravDY);
         }
+        this._gravDY += this._gravSpeedY;
+            if(this._gravSpeedZ < 0) {
+                if(this._ball.position.z > 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
+            else {
+                if(this._ball.position.z < 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
     }
     _gravity() {
             // if (this._ball.position.z > this._table.scale.z / 2) {
@@ -67601,17 +67633,6 @@ module.exports = class Game {
             //     // dy = -dy;
             // }            
 
-            this._gravDY += this._gravSpeedY;
-            if(this._gravSpeedZ < 0) {
-                if(this._ball.position.z > 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
-            else {
-                if(this._ball.position.z < 0) {
-                    this._gravDY += this._gravSpeedY;
-                }
-            }
     }
     _updateBallSpeedX() {
         let changeDirect = this._gravSpeedX > 0 ? true : false;
@@ -67629,9 +67650,11 @@ module.exports = class Game {
         }
         if(this._CURRENT_SCORE[0] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 1 win!"
+            return this._finishGame();
         }
         else if(this._CURRENT_SCORE[1] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 2 win!"
+            return this._finishGame();
         }
         else {
             this._GAME_START = false;
@@ -67642,6 +67665,20 @@ module.exports = class Game {
         }
         this._scoreElement.innerHTML = 
             this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
+    }
+    _finishGame() {
+        this._GAME_ENDED = true;
+        if(this._GESTURE_MODE) {
+            this._handDetector.finish();
+            this._handDetector = null;
+        }
+        document.removeEventListener('mousemove', this._mousemove);
+        document.removeEventListener("keydown", this._spaceDown);
+        console.log(this._gameLoop);
+        cancelAnimationFrame(this._gameLoop);
+        this._gameLoop = null;
+        this._debugConsoleLogs.innerHTML = "";
+        this._exitGame(this._renderer.domElement);
     }
     _checkBallCollisions() {
 
@@ -67682,7 +67719,6 @@ module.exports = class Game {
                 this._updateScoreElement(1);
             }
         }
-
     }
     _setPlayerRole(role=1) {
         this._PLAYER_ROLE = role;
@@ -67707,27 +67743,32 @@ module.exports = class Game {
         });
     }
     _render() {
+        console.log("?");
         this._fpsCounter.begin();
         
-        this._updateRockets();
-        if(this._GAME_START) {
-            this._updateBall();
-            this._gravity();
-            this._checkBallCollisions();
+        if(!this._GAME_ENDED) {
+            this._updateRockets();
+            if(this._GAME_START) {
+                this._updateBall();
+                this._gravity();
+                this._checkBallCollisions();
+            }
         }
 
         this._fpsCounter.end();
 
-        requestAnimationFrame(this._render.bind(this));
+        this._gameLoop = requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
     }
     async load(callback, playerRole) {
         this._setPlayerRole(playerRole)
 
-        // this._handDetector.load();
-        this._addLogMessage("Hand detection loaded.");
-        // this._handDetector.getCurrentState(
-            // this._getHandPrediction.bind(this), 1000/30);
+        if(this._GESTURE_MODE) {
+            this._handDetector.load();
+            this._addLogMessage("Hand detection loaded.");
+            this._handDetector.getCurrentState(
+                this._getHandPrediction.bind(this), 1000/30);
+        }
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -67750,8 +67791,12 @@ module.exports = class Game {
 
         this._render();
         document.addEventListener('mousemove', this._mousemove.bind(this));
-        document.addEventListener("mousedown", this._mousedown.bind(this));        
+        // document.addEventListener("mousedown", this._mousedown.bind(this));
+        document.addEventListener("keydown", this._spaceDown.bind(this));        
         callback();
+    }
+    async onFinish(callback) {
+        this._exitGame = callback;
     }
 }
 },{"../detection/App":69,"stats.js":65}],73:[function(require,module,exports){
@@ -67761,15 +67806,25 @@ module.exports = class ClientSocket {
     constructor(userName) {
         this._playerRole = null;
         this._userName = userName;
-        this._roomName = null;
+        this._opponentData = null;
         this._socket = io.connect(window.location.origin,{query:`username=${userName}`});
+    }
+    onCreateGame(callback) {
+        this._socket.on("create_game", (data)=>{
+            this._playerRole = data.role;
+            this._opponentData = data.opponentData
+            callback(this._playerRole);
+        });        
     }
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
-            this._playerRole = data.role;
-            this._roomName = data.roomName;
-            callback(this._playerRole);
-        });        
+            callback(data);
+        });
+    }
+    onStopGame(callback) {
+        this._socket.on("stop_game", (data)=>{
+            callback(data);
+        });
     }
     onUpdateRocketPos(callback) {
         this._socket.on("update_rocket_pos", (data)=>{
@@ -67781,14 +67836,24 @@ module.exports = class ClientSocket {
             callback(data);
         });
     }
+    onUpdateScore(callback) {
+        this._socket.on("update_score", (data)=>{
+            callback(data);
+        });
+    }
+    onFinishGame(callback) {
+        this._socket.on("finish_game", (data)=>{
+            callback(data);
+        });
+    }
     getSocket() {
         return this._socket;
     }
     getRole() {
         return this._playerRole;
     }
-    getRoomName() {
-        return this._roomName;
+    getOpponentData() {
+        return this._opponentData;
     }
 }
 },{"socket.io-client":50}],74:[function(require,module,exports){
@@ -67798,8 +67863,24 @@ module.exports = class MultiplayerGame extends Game {
     constructor(clientSocket) {
         super();
         this._clientSocket = clientSocket;
+        this._clientSocket.onStartGame(this._onStartGame.bind(this));
         this._clientSocket.onUpdateRocketPos(this._updateRockets.bind(this));
         this._clientSocket.onUpdateBallPos(this._updateBall.bind(this));
+        this._clientSocket.onUpdateScore(this._updateScoreElement.bind(this));
+        this._clientSocket.onFinishGame(this._finishGame.bind(this));
+    }
+    _spaceDown(event) {
+        //key code 32 = space
+        if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
+            let playerRole = this._PLAYER_ROLE;
+            this._clientSocket.getSocket().emit("start_game", {
+                playerRole: playerRole
+            });
+        }
+    }
+    _onStartGame(data) {
+        this._GAME_START = true;
+        this._gameMainMessage.innerHTML = "";
     }
     _updateRockets(data=null) {
         // if data = null, then this method called from render()
@@ -67818,12 +67899,14 @@ module.exports = class MultiplayerGame extends Game {
         else {
             if(data.playerRole == 1) {
                 this._pl1Rocket.position.x += data.xOffset;
+                // this._pl1Rocket.position.x = this._ball.position.x;
                 if(data.playerRole == this._clientSocket.getRole()) {
                     this._camera.position.x = this._pl1Rocket.position.x;
                 }
             }
             else if(data.playerRole == 2) {
                 this._pl2Rocket.position.x += data.xOffset;
+                // this._pl2Rocket.position.x = this._ball.position.x;
                 if(data.playerRole == this._clientSocket.getRole()) {
                     this._camera.position.x = this._pl2Rocket.position.x;
                 }
@@ -67834,54 +67917,123 @@ module.exports = class MultiplayerGame extends Game {
         // if data = null, then this method called from render()
         // else - method called by socket event
         if(!data) {
-            // this._ball.position.x += this._gravSpeedX;
-            // this._ball.position.z += this._gravSpeedZ;
+
         }
         else {
-            this._ball.position.x = data.ballX;
-            this._ball.position.z = data.ballZ;
-            this._gravSpeedZ = Math.abs(this._gravSpeedZ);
-            if(data.isNegativeSpeedZ) {
-                this._gravSpeedZ *= -1;
+            this._gravSpeedX = data.gravSpeedX;
+            this._gravSpeedY = data.gravSpeedY;
+            this._gravDY = data.gravDY;
+            this._gravSpeedZ = data.gravSpeedZ
+
+            this._ball.position.z += this._gravSpeedZ;
+            this._ball.position.x += this._gravSpeedX;
+            this._ball.position.y -= this._gravDY;
+            if(this._ball.position.y <= this._ball.scale.x*2) {
+                this._ball.position.y = this._ball.scale.x*2;
+                this._gravDY = -(this._gravDY);
+            }
+            this._gravDY += this._gravSpeedY;
+            if(this._gravSpeedZ < 0) {
+                if(this._ball.position.z > 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
+            }
+            else {
+                if(this._ball.position.z < 0) {
+                    this._gravDY += this._gravSpeedY;
+                }
             }
         }
+    }
+    _updateScoreElement(data) {
+        
+        this._GAME_START = false;
+        this._ball.position.x = 0;
+        this._ball.position.y = 10;
+        this._ball.position.z = 0;
+        this._setStartGravity();
+
+        // for win a point 
+        if(data.winnerSocketId == this._clientSocket.getSocket().id) {
+            this._CURRENT_SCORE[this._PLAYER_ROLE-1]++;
+            //for game end 
+            if(this._CURRENT_SCORE[this._PLAYER_ROLE-1] >= this._MAX_SCORE_VALUE) {
+                this._gameMainMessage.innerHTML = `You win a GAME!`;
+                this._clientSocket.getSocket().emit("finish_game", {
+                    winnerSocketId: data.winnerSocketId
+                });
+                return;    
+            }
+
+            this._gameMainMessage.innerHTML = `You win a point!`;
+        }
+        // for lose a point
+        else {
+            this._CURRENT_SCORE[2-this._PLAYER_ROLE]++;
+            //for game end 
+            if(this._CURRENT_SCORE[this._PLAYER_ROLE-1] >= this._MAX_SCORE_VALUE) {
+                this._gameMainMessage.innerHTML = 
+                    `${this._clientSocket.getOpponentData().userName} win a GAME!`;
+                this._clientSocket.getSocket().emit("finish_game", {
+                    winnerSocketId: data.winnerSocketId
+                });
+                return;    
+            }
+
+            this._gameMainMessage.innerHTML = 
+                `${this._clientSocket.getOpponentData().userName} win a point!`
+        }
+
+        this._scoreElement.innerHTML = 
+            this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
+    }
+    _finishGame(data) {
+        
     }
     _checkBallCollisions() {
         let ballX = this._ball.position.x;
         let ballY = this._ball.position.y;
         let ballZ = this._ball.position.z;
 
+        let changeSpeedZ = false;
+
         // checking collision for the player 1 rocket
-        if(this._PLAYER_ROLE == 1 && ballZ >= this._table.scale.z/2 && ballZ <= this._table.scale.z/2+this._ball.scale.z) {
+        if(this._PLAYER_ROLE == 1 && this._gravSpeedZ > 0 && ballZ >= this._table.scale.z/2 && ballZ <= this._table.scale.z/2+this._ball.scale.z) {
             let leftRocketCorner = this._pl1Rocket.position.x-this._pl1Rocket.scale.x*4;
             let rightRocketCorner = this._pl1Rocket.position.x+this._pl1Rocket.scale.x*4;
             if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
-                this._updateBallSpeedX();
+                // this._updateBallSpeedX();
                 this._gravSpeedZ *= -1;
+                changeSpeedZ = true;
                 if(this._gravDY > 0) 
                     this._gravDY = -this._gravDY; 
             }
             else {
                 this._gravDY += this._gravSpeedY;
-                this._CURRENT_SCORE[1]++;
-                this._updateScoreElement(2);
+                let opponentId = this._clientSocket.getOpponentData().id;
+                this._clientSocket.getSocket().emit("update_score", {
+                    winnerSocketId: opponentId
+                });
                 return;
             }
         }
         // checking collision for the player 2 rocket
-        else if(this._PLAYER_ROLE == 2 && ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
+        else if(this._PLAYER_ROLE == 2 && this._gravSpeedZ <= 0 && ballZ <= -(this._table.scale.z/2) && ballZ >= -(this._table.scale.z/2+this._ball.scale.z)) {
             let leftRocketCorner = this._pl2Rocket.position.x-this._pl2Rocket.scale.x*4;
             let rightRocketCorner = this._pl2Rocket.position.x+this._pl2Rocket.scale.x*4;
             if(leftRocketCorner <= ballX && ballX <= rightRocketCorner) {
-                this._updateBallSpeedX();
+                // this._updateBallSpeedX()
                 this._gravSpeedZ *= -1;
+                changeSpeedZ = true;
                 if(this._gravDY > 0) 
                     this._gravDY = -this._gravDY; 
             }
             else {
                 this._gravDY += this._gravSpeedY;
-                this._CURRENT_SCORE[0]++;
-                this._updateScoreElement(1);
+                let opponentId = this._clientSocket.getOpponentData().id;
+                this._clientSocket.getSocket().emit("update_score", {
+                    winnerSocketId: opponentId
+                });
                 return;
             }
         }
@@ -67896,17 +68048,23 @@ module.exports = class MultiplayerGame extends Game {
                 playerRole = 1;
                 isNegativeSpeedZ = false;
             }
+            // console.log(`player role = ${playerRole}, gravspeedz = ${this._gravSpeedZ}`);
             let gravSpeedX = this._gravSpeedX;
+            let gravSpeedY = this._gravSpeedY;
+            let gravDY = this._gravDY;
             let gravSpeedZ = this._gravSpeedZ;
-            let updateBallData = {
-                ballX: ballX+gravSpeedX,
-                ballY: ballY,
-                ballZ: ballZ+gravSpeedZ,
-                isNegativeSpeedZ: isNegativeSpeedZ
-            }
-            
+
             // sender of this event - only player who will hit the ball next
-            if(playerRole == this._PLAYER_ROLE) {
+            // or if we changed gravSpeedZ
+            if(changeSpeedZ || playerRole == this._PLAYER_ROLE) {
+                console.log(`hello`);
+                let updateBallData = {
+                    gravSpeedX: gravSpeedX,
+                    gravSpeedY: gravSpeedY,
+                    gravDY: gravDY,
+                    gravSpeedZ: gravSpeedZ,
+                    isNegativeSpeedZ: isNegativeSpeedZ
+                }
                 this._clientSocket.getSocket().emit("update_ball_pos", updateBallData);
             }
     }
@@ -67930,22 +68088,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
     const swapContainer = (past, next, speed, callback)=> {
         past.style.opacity = 1;
-        if(next)  
-            next.style.opacity = 0;
-        let hideAnimation = setInterval(()=>{
-            past.style.opacity -= 0.05;
-            if(past.style.opacity <= 0 ) {
-                clearInterval(hideAnimation);
-                past.style.display = "none";
-                if(next) {
-                    next.style.display = "block";
-                    next.style.opacity = 1;
+            if(next)  
+                next.style.opacity = 0;
+            let hideAnimation = setInterval(()=>{
+                past.style.opacity -= 0.05;
+                if(past.style.opacity <= 0 ) {
+                    clearInterval(hideAnimation);
+                    past.style.display = "none";
+                    if(next) {
+                        next.style.display = "block";
+                        next.style.opacity = 1;
+                        callback();
+                        return;
+                    }
                     callback();
-                    return;
                 }
-                callback();
-            }
-        }, speed);
+            }, speed);
     }
 
     startNameInput.addEventListener("input", (event)=>{
@@ -67968,21 +68126,41 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
     playAloneBtn.addEventListener("click", (event)=> {
         playAloneBtn.disabled = true;
-        swapContainer(mainContainer, null, 20, ()=>{
-            const game = new Game();
+        playOnlineBtn.disabled = true;
+        let swapedFirst = swapContainer(mainContainer, null, 20, ()=>{
+            let game;
+            if(startNameInput.value === "dmitry") {
+                game = new Game(false);
+            }
+            else {
+                 game = new Game();
+            }
             gameUi.style.display = "block";
-            game.load(()=>{
-
+            let loaded = game.load(()=>{
+                let finished = game.onFinish((gameCanvas)=>{
+                    let swapedSecond = swapContainer(gameCanvas, mainContainer, 50, ()=>{
+                        loaded = null;
+                        finished = null;
+                        game = null;
+                        swapedFirst = null
+                        swapedSecond = null;
+                        playAloneBtn.disabled = false;
+                        playOnlineBtn.disabled = false;
+                        gameUi.style.display = "none";
+                        gameCanvas.remove()
+                    });
+                });
             }, 1);
         });
     });
 
     playOnlineBtn.addEventListener("click", (event)=> {
         if(isNameSelected) {
+            playAloneBtn.disabled = true;
             playOnlineBtn.disabled = true;
             swapContainer(mainContainer, loadingContainer, 20, ()=>{
                 let clientSocket = new ClientSocket(startNameInput.value);
-                clientSocket.onStartGame((role)=>{
+                clientSocket.onCreateGame((role)=>{
                     swapContainer(loadingContainer, null, 20, ()=>{
                         const game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";

@@ -19,10 +19,26 @@ module.exports = class ServerSocket {
             }
         });
 
+        socket.on("start_game", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room != socket.id) 
+                    return this._io.to(room).emit("start_game", data);
+            }
+        });
+
+        socket.on("stop_game", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room != socket.id) 
+                    return this._io.to(room).emit("stop_game", data);
+            }
+        });
+
         socket.on("update_rocket_pos", (data)=>{
             let rooms = socket.adapter.sids.get(socket.id);
             for (let room of rooms) {
-                if(room  != socket.id) 
+                if(room != socket.id) 
                     return this._io.to(room).emit("update_rocket_pos", data);
             }
         });
@@ -30,8 +46,31 @@ module.exports = class ServerSocket {
         socket.on("update_ball_pos", (data)=>{
             let rooms = socket.adapter.sids.get(socket.id);
             for (let room of rooms) {
-                if(room  != socket.id) 
+                if(room != socket.id) 
                     return this._io.to(room).emit("update_ball_pos", data);
+            }
+        });
+
+        socket.on("update_score", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room != socket.id) 
+                    return this._io.to(room).emit("update_score", data);
+            }
+        });
+
+        socket.on("finish_game", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room != socket.id) {
+                    this._io.to(room).emit("finish_game", data);
+                    let roomSocketsIds = this._io.sockets.adapter.rooms.get(room);
+                    for(let socketId of roomSocketsIds) {
+                        let roomSocket = this._io.sockets.sockets.get(socketId)                        
+                        roomSocket.leave(room);
+                    }
+                    return console.log(`Room deleted ${room}`); 
+                }
             }
         });
 
@@ -40,16 +79,32 @@ module.exports = class ServerSocket {
             userName: socket.handshake.query.username
         });
         if(this._waitingUsersList.length >= 2) 
-            this._startGame();
+            this._createGame();
     }
-    _startGame() {
-        let player1 = this._waitingUsersList.shift().socket;
-        let player2 = this._waitingUsersList.shift().socket;
-        let roomName = player1.id+player2.id;
-        player1.join(roomName);
-        player2.join(roomName);
-        this._io.to(player1.id).emit("start_game", {role: 1, roomName: roomName});
-        this._io.to(player2.id).emit("start_game", {role: 2, roomName: roomName});
+    _createGame() {
+        let player1 = this._waitingUsersList.shift();
+        let player2 = this._waitingUsersList.shift();
+        let roomName = player1.socket.id+player2.socket.id;
+        player1.socket.join(roomName);
+        player2.socket.join(roomName);
+        this._io.to(player1.socket.id).emit("create_game", {
+            role: 1,
+            roomName: roomName,
+            opponentData: {
+                id: player2.socket.id,
+                userName: player2.userName,
+                role: 2
+            }
+        });
+        this._io.to(player2.socket.id).emit("create_game", {
+            role: 2, 
+            roomName: roomName,
+            opponentData: {
+                id: player1.socket.id,
+                userName: player1.userName,
+                role: 1
+            }
+        });
         console.log(`New room created: ${roomName}`);
     }
 }

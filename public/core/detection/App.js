@@ -23,6 +23,8 @@ module.exports = class App {
             }
         };
 
+        this.getCurrentStateInterval = null;
+
         /* afkScore need to execute model mistake (sometimes it don't
         recognise a hand). If afkScore is under 3, then person just took 
         his hand away */
@@ -39,6 +41,14 @@ module.exports = class App {
             videoCanvas.style.display = "block";
             this.changeCanvas();
         });
+    }
+    async finish() {
+        this.videoElement.srcObject.getTracks()[0].stop();
+        clearInterval(this.getCurrentStateInterval);
+        this.detectionModelWorker.removeEventListener("message", this.onDetect);
+        this.detectionModelWorker.terminate();
+        this.getCurrentState = null;
+        console.log("finished");
     }
     async detectHand() {
         const canvas = document.createElement("canvas");
@@ -76,7 +86,7 @@ module.exports = class App {
         this.detectHand();
     }
     getCurrentState(callback, speed) {
-        setInterval(() => {
+        this.getCurrentStateInterval = setInterval(() => {
             callback(this.currentState);
         }, speed);
     }

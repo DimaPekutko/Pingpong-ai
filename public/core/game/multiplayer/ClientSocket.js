@@ -4,15 +4,25 @@ module.exports = class ClientSocket {
     constructor(userName) {
         this._playerRole = null;
         this._userName = userName;
-        this._roomName = null;
+        this._opponentData = null;
         this._socket = io.connect(window.location.origin,{query:`username=${userName}`});
+    }
+    onCreateGame(callback) {
+        this._socket.on("create_game", (data)=>{
+            this._playerRole = data.role;
+            this._opponentData = data.opponentData
+            callback(this._playerRole);
+        });        
     }
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
-            this._playerRole = data.role;
-            this._roomName = data.roomName;
-            callback(this._playerRole);
-        });        
+            callback(data);
+        });
+    }
+    onStopGame(callback) {
+        this._socket.on("stop_game", (data)=>{
+            callback(data);
+        });
     }
     onUpdateRocketPos(callback) {
         this._socket.on("update_rocket_pos", (data)=>{
@@ -24,13 +34,23 @@ module.exports = class ClientSocket {
             callback(data);
         });
     }
+    onUpdateScore(callback) {
+        this._socket.on("update_score", (data)=>{
+            callback(data);
+        });
+    }
+    onFinishGame(callback) {
+        this._socket.on("finish_game", (data)=>{
+            callback(data);
+        });
+    }
     getSocket() {
         return this._socket;
     }
     getRole() {
         return this._playerRole;
     }
-    getRoomName() {
-        return this._roomName;
+    getOpponentData() {
+        return this._opponentData;
     }
 }
