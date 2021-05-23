@@ -67678,6 +67678,7 @@ module.exports = class Game {
         cancelAnimationFrame(this._gameLoop);
         this._gameLoop = null;
         this._debugConsoleLogs.innerHTML = "";
+        this._gameMainMessage.innerHTML = "";
         this._exitGame(this._renderer.domElement);
     }
     _checkBallCollisions() {
