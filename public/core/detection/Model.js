@@ -1,7 +1,7 @@
 require('@tensorflow/tfjs-backend-webgl'); // handpose does not itself require a backend, so you must explicitly install one.
 require('@tensorflow/tfjs-converter');
 require('@tensorflow/tfjs-core');
-require('@tensorflow/tfjs-backend-cpu');
+// require('@tensorflow/tfjs-backend-cpu');
 // tf.ENV.set("WEBGL_CPU_FORWARD", true)
 const handpose = require('@tensorflow-models/handpose');
 const fp = require('fingerpose');

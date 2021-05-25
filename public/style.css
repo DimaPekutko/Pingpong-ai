@@ -121,6 +121,9 @@ button {
 #play_online_btn:active {
     background: darkred;
 }
+#github_link {
+    color: yellowgreen;
+}
 #footer_info {
     /* color: rgb(19, 18, 18); */
     color: slategrey;
