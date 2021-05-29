@@ -67160,22 +67160,27 @@ module.exports = class App {
         this.afkScore = 0;         
     }
     async load() {
-        this.userCamera = await this.loadCamera().then(async () => {
-            this.videoElement = videoElement;
-            this.videoElement.width = 240;
-            this.videoElement.height = 120;
-            this.ctxVideo = videoCanvas.getContext("2d");
-            this.detectionModelWorker = webworkify(require("./Model.js"));
-            this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
-            videoCanvas.style.display = "block";
-            this.changeCanvas();
-        });
+        this.userCamera = await this.loadCamera()
+            .then(async () => {
+                this.videoElement = videoElement;
+                this.videoElement.width = 240;
+                this.videoElement.height = 120;
+                this.ctxVideo = videoCanvas.getContext("2d");
+                this.detectionModelWorker = webworkify(require("./Model.js"));
+                this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
+                videoCanvas.style.display = "block";
+                this.changeCanvas();
+            }).
+            catch((error) => {
+                throw error;
+            });
     }
     async finish() {
         this.videoElement.srcObject.getTracks()[0].stop();
         clearInterval(this.getCurrentStateInterval);
         this.detectionModelWorker.removeEventListener("message", this.onDetect);
         this.detectionModelWorker.terminate();
+        videoCanvas.style.display = "none";
         this.getCurrentState = null;
         console.log("finished");
     }
@@ -67224,7 +67229,7 @@ module.exports = class App {
             try {
                 videoElement.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
             } catch (error) {
-                console.log("Camera is not loaded");
+                throw "Camera is not loaded.";
             }
         }
     }
@@ -67307,7 +67312,7 @@ FistGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
 require('@tensorflow/tfjs-backend-webgl'); // handpose does not itself require a backend, so you must explicitly install one.
 require('@tensorflow/tfjs-converter');
 require('@tensorflow/tfjs-core');
-require('@tensorflow/tfjs-backend-cpu');
+require('@tensorflow/tfjs-backend-cpu'); 
 // tf.ENV.set("WEBGL_CPU_FORWARD", true)
 const handpose = require('@tensorflow-models/handpose');
 const fp = require('fingerpose');
@@ -67369,7 +67374,9 @@ module.exports = class Game {
     constructor(gesture_mode = true) {
         this._debugConsoleLogs = document.getElementById("debug_console_logs");
         this._scoreElement = document.getElementById("score_value");
+        this._usersNamesElement = document.getElementById("users_names");
         this._gameMainMessage = document.getElementById("game_main_message");
+        this._gameMainHint = document.getElementById("game_main_hint");
 
         this._handDetector = new HandRecognition();
 
@@ -67450,12 +67457,14 @@ module.exports = class Game {
         this._GESTURE_MODE = gesture_mode;
         this._ROCKET_SPEED_X = 0.001;
         this._PLAYER_ROLE = null;
+        this._PLAYER_HAND_LOADED = false;
         this._GAME_START = false;
         this._GAME_ENDED = false;
         this._CURRENT_SCORE = [0,0];
-        this._MAX_SCORE_VALUE = 1;
+        this._MAX_SCORE_VALUE = 5;
 
-        this._exitGame = null;
+        this._gameLoadedCallback = null;
+        this._exitGameCallback = null;
     }
     _setStartGravity() {
         this._gravNormalSpeedZ = 0.5;
@@ -67474,8 +67483,11 @@ module.exports = class Game {
         this._lastMouseX = 0;
         this._lastMouseY = 0;
     }
-    _addLogMessage(message) {
-        this._debugConsoleLogs.innerHTML += ("<br>"+message);
+    _addLogMessage(message, loaded=true) {
+        if(loaded)
+            this._debugConsoleLogs.innerHTML += ("<br>"+message+"✅");
+        else 
+        this._debugConsoleLogs.innerHTML += ("<br>"+message+"❌");
     }
     _loadRocket1(path) {
         return new Promise((resolve)=>{
@@ -67548,6 +67560,9 @@ module.exports = class Game {
                 if(Math.abs(this._rocketXOffset) < 0.1) {
                     this._rocketXOffset = 0;
                 }
+
+                if(this._PLAYER_ROLE == 2) 
+                    this._rocketXOffset *= -1;
                 // if(Math.abs(this._rocketYOffset) < 0.1) {
                 //     this._rocketYOffset = 0;
                 // }
@@ -67557,6 +67572,13 @@ module.exports = class Game {
                         // this._pl1Rocket.position.y+this._rocketYOffset
                     ];
                 // this._rocketMoveAnimation();
+            }
+            if(!this._PLAYER_HAND_LOADED) {
+                this._PLAYER_HAND_LOADED = true;
+                this._rocketXOffset = 0;
+                this._gameMainHint.style.display = "none";
+                this._renderer.domElement.style.opacity = 1;
+                this._gameLoadedCallback();
             }
         }
         else { return; }
@@ -67573,6 +67595,8 @@ module.exports = class Game {
             return;
         }
         this._rocketXOffset = -(this._lastMouseX-x)/10;
+        if(this._PLAYER_ROLE == 2) 
+            this._rocketXOffset *= -1;
         // this._rocketYOffset = (this._lastMouseY-y)/10;
         this._lastMouseX = x;
         // this._lastMouseY = y;
@@ -67585,6 +67609,8 @@ module.exports = class Game {
         }
     }
     _spaceDown(event) {
+        if(this._GESTURE_MODE && !this._PLAYER_HAND_LOADED)
+            return;
         //key code 32 = space
         if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
             this._GAME_START = true;
@@ -67674,12 +67700,15 @@ module.exports = class Game {
         }
         document.removeEventListener('mousemove', this._mousemove);
         document.removeEventListener("keydown", this._spaceDown);
-        console.log(this._gameLoop);
-        cancelAnimationFrame(this._gameLoop);
-        this._gameLoop = null;
-        this._debugConsoleLogs.innerHTML = "";
-        this._gameMainMessage.innerHTML = "";
-        this._exitGame(this._renderer.domElement);
+        this._renderer.setAnimationLoop(null);
+        setTimeout(()=>{
+            this._gameLoop = null;
+            this._debugConsoleLogs.innerHTML = "";
+            this._gameMainMessage.innerHTML = "";
+            this._scoreElement.innerHTML = "0:0";
+            this._usersNamesElement.innerHTML = "you:bot";
+            this._exitGameCallback(this._renderer.domElement);
+        }, 2000);
     }
     _checkBallCollisions() {
 
@@ -67737,14 +67766,12 @@ module.exports = class Game {
     }
     async _getPlayerReady() {
         return new Promise((resolve)=>{
-            const cnv = 
-                document.getElementById("videoCanvas");
-            let oldWidh = cnv.clientWidth, oldheight = cnv.cHeight;
+            
             // resolve();
         });
     }
     _render() {
-        console.log("?");
+        console.log("render");
         this._fpsCounter.begin();
         
         if(!this._GAME_ENDED) {
@@ -67758,18 +67785,13 @@ module.exports = class Game {
 
         this._fpsCounter.end();
 
-        this._gameLoop = requestAnimationFrame(this._render.bind(this));
+        // this._gameLoop = requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
+        // this._renderer.setAnimationLoop(this._render.bind(this));
     }
     async load(callback, playerRole) {
         this._setPlayerRole(playerRole)
 
-        if(this._GESTURE_MODE) {
-            this._handDetector.load();
-            this._addLogMessage("Hand detection loaded.");
-            this._handDetector.getCurrentState(
-                this._getHandPrediction.bind(this), 1000/30);
-        }
         await this._loadRocket1("./../../rocket_model/scene.gltf");
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
@@ -67790,14 +67812,43 @@ module.exports = class Game {
         //     this._ball.position.set(0,5,-this._table.scale.z/2);
         this._ball.scale.set(0.3, 0.3, 0.3);
 
-        this._render();
+        if(this._GESTURE_MODE) {
+            this._gameMainHint.style.display = "block";
+            this._gameMainHint.innerHTML = 
+                    `Loading camera...`;
+            this._handDetector.load()
+            .then(()=>{
+                this._addLogMessage("Camera loaded.");
+                this._addLogMessage("Hand detection loaded.");
+                this._handDetector.getCurrentState(
+                    this._getHandPrediction.bind(this), 1000/30);
+                this._gameMainHint.innerHTML = 
+                    `Prepare your hand on front of the camera`
+                this._renderer.domElement.style.opacity = 0.3;
+            })
+            .catch((error) => {
+                this._addLogMessage(error, false);
+                this._addLogMessage("Mouse mode activated.");
+                this._gameMainHint.innerHTML = "";
+                this._gameMainHint.style.display = "none";
+                this._GESTURE_MODE = false;
+            });
+        }
+
+        // this._render();
+        this._renderer.setAnimationLoop(this._render.bind(this));
+
         document.addEventListener('mousemove', this._mousemove.bind(this));
         // document.addEventListener("mousedown", this._mousedown.bind(this));
-        document.addEventListener("keydown", this._spaceDown.bind(this));        
-        callback();
+        document.addEventListener("keydown", this._spaceDown.bind(this));  
+
+        this._gameLoadedCallback = callback;
+        if(!this._GESTURE_MODE) {
+            this._gameLoadedCallback();
+        }
     }
     async onFinish(callback) {
-        this._exitGame = callback;
+        this._exitGameCallback = callback;
     }
 }
 },{"../detection/App":69,"stats.js":65}],73:[function(require,module,exports){
@@ -67847,6 +67898,9 @@ module.exports = class ClientSocket {
             callback(data);
         });
     }
+    getUserName() {
+        return this._userName;
+    }
     getSocket() {
         return this._socket;
     }
@@ -67871,6 +67925,8 @@ module.exports = class MultiplayerGame extends Game {
         this._clientSocket.onFinishGame(this._finishGame.bind(this));
     }
     _spaceDown(event) {
+        if(this._GESTURE_MODE && !this._PLAYER_HAND_LOADED)
+            return;
         //key code 32 = space
         if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
             let playerRole = this._PLAYER_ROLE;
@@ -67988,9 +68044,6 @@ module.exports = class MultiplayerGame extends Game {
         this._scoreElement.innerHTML = 
             this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
     }
-    _finishGame(data) {
-        
-    }
     _checkBallCollisions() {
         let ballX = this._ball.position.x;
         let ballY = this._ball.position.y;
@@ -68082,9 +68135,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const startNameInputHint = document.getElementById("name_input_hint");
     const playAloneBtn = document.getElementById("play_alone_btn");
     const playOnlineBtn = document.getElementById("play_online_btn");
+    const gameUsersNames = document.getElementById("users_names");
     const minNameLength = 5;
     let isNameSelected = false;
 
+    
     startNameInput.focus();
 
     const swapContainer = (past, next, speed, callback)=> {
@@ -68139,7 +68194,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             gameUi.style.display = "block";
             let loaded = game.load(()=>{
                 let finished = game.onFinish((gameCanvas)=>{
-                    let swapedSecond = swapContainer(gameCanvas, mainContainer, 50, ()=>{
+                    let swapedSecond = swapContainer(gameCanvas, mainContainer, 100, ()=>{
                         loaded = null;
                         finished = null;
                         game = null;
@@ -68159,14 +68214,36 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(isNameSelected) {
             playAloneBtn.disabled = true;
             playOnlineBtn.disabled = true;
-            swapContainer(mainContainer, loadingContainer, 20, ()=>{
+            let spwapedFirst = swapContainer(mainContainer, loadingContainer, 20, ()=>{
                 let clientSocket = new ClientSocket(startNameInput.value);
-                clientSocket.onCreateGame((role)=>{
-                    swapContainer(loadingContainer, null, 20, ()=>{
-                        const game = new MultiplayerGame(clientSocket);
+                let created = clientSocket.onCreateGame((role)=>{
+                    let swapedSecond = swapContainer(loadingContainer, null, 50, ()=>{
+                        let game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
-                        game.load(()=>{
-
+                        let loaded = game.load(()=>{
+                            if(clientSocket.getRole() == 1) {
+                                gameUsersNames.innerHTML = 
+                                    clientSocket.getUserName()+":"+clientSocket.getOpponentData().userName;
+                            }
+                            else {
+                                gameUsersNames.innerHTML = 
+                                    clientSocket.getOpponentData().userName+":"+clientSocket.getUserName();
+                            }
+                            let finished = game.onFinish((gameCanvas)=>{
+                                let swapedThird = swapContainer(gameCanvas, mainContainer, 50, ()=>{
+                                    created = null;
+                                    loaded = null;
+                                    finished = null;
+                                    game = null;
+                                    swapedFirst = null
+                                    swapedSecond = null;
+                                    swapedThird = null;
+                                    playAloneBtn.disabled = false;
+                                    playOnlineBtn.disabled = false;
+                                    gameUi.style.display = "none";
+                                    gameCanvas.remove()
+                                });
+                            });
                         }, clientSocket.getRole());
                     });
                 }); 

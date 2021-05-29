@@ -31,22 +31,27 @@ module.exports = class App {
         this.afkScore = 0;         
     }
     async load() {
-        this.userCamera = await this.loadCamera().then(async () => {
-            this.videoElement = videoElement;
-            this.videoElement.width = 240;
-            this.videoElement.height = 120;
-            this.ctxVideo = videoCanvas.getContext("2d");
-            this.detectionModelWorker = webworkify(require("./Model.js"));
-            this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
-            videoCanvas.style.display = "block";
-            this.changeCanvas();
-        });
+        this.userCamera = await this.loadCamera()
+            .then(async () => {
+                this.videoElement = videoElement;
+                this.videoElement.width = 240;
+                this.videoElement.height = 120;
+                this.ctxVideo = videoCanvas.getContext("2d");
+                this.detectionModelWorker = webworkify(require("./Model.js"));
+                this.detectionModelWorker.addEventListener("message", this.onDetect.bind(this));
+                videoCanvas.style.display = "block";
+                this.changeCanvas();
+            }).
+            catch((error) => {
+                throw error;
+            });
     }
     async finish() {
         this.videoElement.srcObject.getTracks()[0].stop();
         clearInterval(this.getCurrentStateInterval);
         this.detectionModelWorker.removeEventListener("message", this.onDetect);
         this.detectionModelWorker.terminate();
+        videoCanvas.style.display = "none";
         this.getCurrentState = null;
         console.log("finished");
     }
@@ -95,7 +100,7 @@ module.exports = class App {
             try {
                 videoElement.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
             } catch (error) {
-                console.log("Camera is not loaded");
+                throw "Camera is not loaded.";
             }
         }
     }

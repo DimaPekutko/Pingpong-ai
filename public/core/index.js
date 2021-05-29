@@ -9,9 +9,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const startNameInputHint = document.getElementById("name_input_hint");
     const playAloneBtn = document.getElementById("play_alone_btn");
     const playOnlineBtn = document.getElementById("play_online_btn");
+    const gameUsersNames = document.getElementById("users_names");
     const minNameLength = 5;
     let isNameSelected = false;
 
+    
     startNameInput.focus();
 
     const swapContainer = (past, next, speed, callback)=> {
@@ -66,7 +68,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             gameUi.style.display = "block";
             let loaded = game.load(()=>{
                 let finished = game.onFinish((gameCanvas)=>{
-                    let swapedSecond = swapContainer(gameCanvas, mainContainer, 50, ()=>{
+                    let swapedSecond = swapContainer(gameCanvas, mainContainer, 100, ()=>{
                         loaded = null;
                         finished = null;
                         game = null;
@@ -86,14 +88,36 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(isNameSelected) {
             playAloneBtn.disabled = true;
             playOnlineBtn.disabled = true;
-            swapContainer(mainContainer, loadingContainer, 20, ()=>{
+            let spwapedFirst = swapContainer(mainContainer, loadingContainer, 20, ()=>{
                 let clientSocket = new ClientSocket(startNameInput.value);
-                clientSocket.onCreateGame((role)=>{
-                    swapContainer(loadingContainer, null, 20, ()=>{
-                        const game = new MultiplayerGame(clientSocket);
+                let created = clientSocket.onCreateGame((role)=>{
+                    let swapedSecond = swapContainer(loadingContainer, null, 50, ()=>{
+                        let game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
-                        game.load(()=>{
-
+                        let loaded = game.load(()=>{
+                            if(clientSocket.getRole() == 1) {
+                                gameUsersNames.innerHTML = 
+                                    clientSocket.getUserName()+":"+clientSocket.getOpponentData().userName;
+                            }
+                            else {
+                                gameUsersNames.innerHTML = 
+                                    clientSocket.getOpponentData().userName+":"+clientSocket.getUserName();
+                            }
+                            let finished = game.onFinish((gameCanvas)=>{
+                                let swapedThird = swapContainer(gameCanvas, mainContainer, 50, ()=>{
+                                    created = null;
+                                    loaded = null;
+                                    finished = null;
+                                    game = null;
+                                    swapedFirst = null
+                                    swapedSecond = null;
+                                    swapedThird = null;
+                                    playAloneBtn.disabled = false;
+                                    playOnlineBtn.disabled = false;
+                                    gameUi.style.display = "none";
+                                    gameCanvas.remove()
+                                });
+                            });
                         }, clientSocket.getRole());
                     });
                 }); 

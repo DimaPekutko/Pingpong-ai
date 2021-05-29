@@ -11,6 +11,8 @@ module.exports = class MultiplayerGame extends Game {
         this._clientSocket.onFinishGame(this._finishGame.bind(this));
     }
     _spaceDown(event) {
+        if(this._GESTURE_MODE && !this._PLAYER_HAND_LOADED)
+            return;
         //key code 32 = space
         if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
             let playerRole = this._PLAYER_ROLE;
@@ -127,9 +129,6 @@ module.exports = class MultiplayerGame extends Game {
 
         this._scoreElement.innerHTML = 
             this._CURRENT_SCORE[0]+":"+this._CURRENT_SCORE[1];
-    }
-    _finishGame(data) {
-        
     }
     _checkBallCollisions() {
         let ballX = this._ball.position.x;

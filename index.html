@@ -19,18 +19,21 @@
         <p id="name_input_hint"></p><br>
         <button id="play_alone_btn">Play alone</button>
         <button id="play_online_btn">Play online</button><br><br>
-        <a id="github_link" href="#">GitHub</a>
+        <a id="github_link" target="_blank" href="https://github.com/DimaPekutko/Pingpong-ai">GitHub</a>
         <p id="footer_info">dkefir03@gmail.com</p>
     </div>
     <div class="loading container">
         <h1>PingPong<img id="main_logo" src="/images/pingpong.png" alt="">AI</h1><br><br>
+        <img id="loading_gif" src="/images/loading.gif" alt="">
         <h2>Searching for the opponent...</h2>
         <p id="footer_info">dkefir03@gmail.com</p>
     </div>
     <div class="game_ui">
         <h2>Score:</h2>
+        <p id="users_names">You:Bot</p>
         <p id="score_value">0:0</p>
         <h2 id="game_main_message"></h2>
+        <h1 id="game_main_hint">...</h1>
         <video id="videoElement" autoplay="true"></video>
         <canvas id="videoCanvas"></canvas>
         <div class="debug_console">

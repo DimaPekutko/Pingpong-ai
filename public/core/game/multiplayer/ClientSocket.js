@@ -44,6 +44,9 @@ module.exports = class ClientSocket {
             callback(data);
         });
     }
+    getUserName() {
+        return this._userName;
+    }
     getSocket() {
         return this._socket;
     }
