@@ -67487,7 +67487,7 @@ module.exports = class Game {
         if(loaded)
             this._debugConsoleLogs.innerHTML += ("<br>"+message+"✅");
         else 
-        this._debugConsoleLogs.innerHTML += ("<br>"+message+"❌");
+            this._debugConsoleLogs.innerHTML += ("<br>"+message+"❌");
     }
     _loadRocket1(path) {
         return new Promise((resolve)=>{
@@ -67669,10 +67669,10 @@ module.exports = class Game {
     }
     _updateScoreElement(player) {
         if(player == 1) {
-            this._gameMainMessage.innerHTML = "Player 1 win a point!"
+            this._gameMainMessage.innerHTML = "You win a point!"
         }
         else if(player == 2) {
-            this._gameMainMessage.innerHTML = "Player 2 win a point!"
+            this._gameMainMessage.innerHTML = "Bot win a point!"
         }
         if(this._CURRENT_SCORE[0] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 1 win!"
@@ -67868,6 +67868,11 @@ module.exports = class ClientSocket {
             callback(this._playerRole);
         });        
     }
+    onHandLoaded(callback) {
+        this._socket.on("hand_loaded", (data)=>{
+            callback(data);
+        }); 
+    }
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
             callback(data);
@@ -67918,14 +67923,18 @@ module.exports = class MultiplayerGame extends Game {
     constructor(clientSocket) {
         super();
         this._clientSocket = clientSocket;
+        this._clientSocket.onHandLoaded(this._onHandLoaded.bind(this));
         this._clientSocket.onStartGame(this._onStartGame.bind(this));
         this._clientSocket.onUpdateRocketPos(this._updateRockets.bind(this));
         this._clientSocket.onUpdateBallPos(this._updateBall.bind(this));
         this._clientSocket.onUpdateScore(this._updateScoreElement.bind(this));
         this._clientSocket.onFinishGame(this._finishGame.bind(this));
+
+        this._OPPONENT_HAND_LOADED = false;
+
     }
     _spaceDown(event) {
-        if(this._GESTURE_MODE && !this._PLAYER_HAND_LOADED)
+        if(this._GESTURE_MODE && (!this._PLAYER_HAND_LOADED || !this._OPPONENT_HAND_LOADED))
             return;
         //key code 32 = space
         if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
@@ -67934,6 +67943,12 @@ module.exports = class MultiplayerGame extends Game {
                 playerRole: playerRole
             });
         }
+    }
+    _onHandLoaded(data) {
+        console.log(data);
+        if(data.playerRole != this._PLAYER_ROLE) {
+            this._OPPONENT_HAND_LOADED = true;
+        } 
     }
     _onStartGame(data) {
         this._GAME_START = true;
@@ -68221,6 +68236,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
                         let game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
                         let loaded = game.load(()=>{
+                            clientSocket.getSocket().emit("hand_loaded", {
+                                playerRole: role
+                            });
                             if(clientSocket.getRole() == 1) {
                                 gameUsersNames.innerHTML = 
                                     clientSocket.getUserName()+":"+clientSocket.getOpponentData().userName;
@@ -68244,7 +68262,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
                                     gameCanvas.remove()
                                 });
                             });
-                        }, clientSocket.getRole());
+                        }, role);
                     });
                 }); 
             });

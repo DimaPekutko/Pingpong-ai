@@ -95,6 +95,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
                         let game = new MultiplayerGame(clientSocket);
                         gameUi.style.display = "block";
                         let loaded = game.load(()=>{
+                            clientSocket.getSocket().emit("hand_loaded", {
+                                playerRole: role
+                            });
                             if(clientSocket.getRole() == 1) {
                                 gameUsersNames.innerHTML = 
                                     clientSocket.getUserName()+":"+clientSocket.getOpponentData().userName;
@@ -118,7 +121,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
                                     gameCanvas.remove()
                                 });
                             });
-                        }, clientSocket.getRole());
+                        }, role);
                     });
                 }); 
             });

@@ -21,12 +21,13 @@ This game is just my experimental expirience with strange connection Three.js wi
 
 Pingpong-AI uses a number of open source projects to work properly:
 
-- [Three.js] - Makes 3d graphics easy in browser
+- [Three.js] - Makes 3d graphics easy in browser.
 - [Browserify] - Browserify lets you require('modules') in the browser by bundling up all of your dependencies.
-- [Tensorflow] - End-to-end open source platform for machine learning
+- [Webworkify] - Helps you to use Web Worker API with Browserify.
+- [Tensorflow] - End-to-end open source platform for machine learning.
 - [Fingerpose] - Finger pose classifier for hand landmarks detected by TensorFlow.js' handpose model. 
-- [Node.js] - evented I/O for the backend
-- [Express] - fast node.js network app framework [@tjholowaychuk]
+- [Node.js] - Evented I/O for the backend.
+- [Express] - Fast node.js network app framework [@tjholowaychuk]
 - [Socket.io] -  Enables real-time, bidirectional and event-based communication.
 
 ## Installation
@@ -56,6 +57,7 @@ MIT
 
    [Three.js]: <http://threejs.org>
    [Browserify]: <http://browserify.org>
+   [Webworkify]: <https://www.npmjs.com/package/webworkify>
    [Tensorflow]: <http://tensorflow.org>
    [Fingerpose]: <http://github.com/andypotato/fingerpose>
    [Node.js]: <http://nodejs.org>

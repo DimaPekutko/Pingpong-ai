@@ -118,7 +118,7 @@ module.exports = class Game {
         if(loaded)
             this._debugConsoleLogs.innerHTML += ("<br>"+message+"✅");
         else 
-        this._debugConsoleLogs.innerHTML += ("<br>"+message+"❌");
+            this._debugConsoleLogs.innerHTML += ("<br>"+message+"❌");
     }
     _loadRocket1(path) {
         return new Promise((resolve)=>{
@@ -300,10 +300,10 @@ module.exports = class Game {
     }
     _updateScoreElement(player) {
         if(player == 1) {
-            this._gameMainMessage.innerHTML = "Player 1 win a point!"
+            this._gameMainMessage.innerHTML = "You win a point!"
         }
         else if(player == 2) {
-            this._gameMainMessage.innerHTML = "Player 2 win a point!"
+            this._gameMainMessage.innerHTML = "Bot win a point!"
         }
         if(this._CURRENT_SCORE[0] == this._MAX_SCORE_VALUE) {
             this._gameMainMessage.innerHTML = "Player 1 win!"
@@ -402,7 +402,6 @@ module.exports = class Game {
         });
     }
     _render() {
-        console.log("render");
         this._fpsCounter.begin();
         
         if(!this._GAME_ENDED) {
@@ -416,9 +415,7 @@ module.exports = class Game {
 
         this._fpsCounter.end();
 
-        // this._gameLoop = requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
-        // this._renderer.setAnimationLoop(this._render.bind(this));
     }
     async load(callback, playerRole) {
         this._setPlayerRole(playerRole)

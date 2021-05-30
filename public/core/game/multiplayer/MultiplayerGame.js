@@ -4,14 +4,18 @@ module.exports = class MultiplayerGame extends Game {
     constructor(clientSocket) {
         super();
         this._clientSocket = clientSocket;
+        this._clientSocket.onHandLoaded(this._onHandLoaded.bind(this));
         this._clientSocket.onStartGame(this._onStartGame.bind(this));
         this._clientSocket.onUpdateRocketPos(this._updateRockets.bind(this));
         this._clientSocket.onUpdateBallPos(this._updateBall.bind(this));
         this._clientSocket.onUpdateScore(this._updateScoreElement.bind(this));
         this._clientSocket.onFinishGame(this._finishGame.bind(this));
+
+        this._OPPONENT_HAND_LOADED = false;
+
     }
     _spaceDown(event) {
-        if(this._GESTURE_MODE && !this._PLAYER_HAND_LOADED)
+        if(this._GESTURE_MODE && (!this._PLAYER_HAND_LOADED || !this._OPPONENT_HAND_LOADED))
             return;
         //key code 32 = space
         if(!this._GAME_START && this._PLAYER_ROLE == 1 && event.keyCode == 32) {
@@ -20,6 +24,12 @@ module.exports = class MultiplayerGame extends Game {
                 playerRole: playerRole
             });
         }
+    }
+    _onHandLoaded(data) {
+        console.log(data);
+        if(data.playerRole != this._PLAYER_ROLE) {
+            this._OPPONENT_HAND_LOADED = true;
+        } 
     }
     _onStartGame(data) {
         this._GAME_START = true;

@@ -14,6 +14,11 @@ module.exports = class ClientSocket {
             callback(this._playerRole);
         });        
     }
+    onHandLoaded(callback) {
+        this._socket.on("hand_loaded", (data)=>{
+            callback(data);
+        }); 
+    }
     onStartGame(callback) {
         this._socket.on("start_game", (data)=>{
             callback(data);

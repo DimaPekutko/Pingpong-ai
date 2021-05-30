@@ -19,6 +19,14 @@ module.exports = class ServerSocket {
             }
         });
 
+        socket.on("hand_loaded", (data)=>{
+            let rooms = socket.adapter.sids.get(socket.id);
+            for (let room of rooms) {
+                if(room != socket.id) 
+                    return this._io.to(room).emit("hand_loaded", data);
+            }
+        });
+
         socket.on("start_game", (data)=>{
             let rooms = socket.adapter.sids.get(socket.id);
             for (let room of rooms) {
