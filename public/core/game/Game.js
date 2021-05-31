@@ -177,7 +177,7 @@ module.exports = class Game {
     _getHandPrediction(event) {
         // console.log(event);
         let status = event.status;
-        if(status == "waiting")
+        if(status == "waiting" || status == "no_hand")
             return;
         let handX = event?.x;
         let handY = event?.y;
@@ -190,6 +190,13 @@ module.exports = class Game {
                 // this._rocketYOffset = -(handY-this._lastHandCoords[1])/s;
                 if(Math.abs(this._rocketXOffset) < 0.1) {
                     this._rocketXOffset = 0;
+                }
+
+                if(status == "victory") {
+                    console.log("vic");
+                    if(this._PLAYER_ROLE == 1 && this._PLAYER_HAND_LOADED && !this._GAME_START) {
+                        this._spaceDown({keyCode: 32}); // space key code
+                    }
                 }
 
                 if(this._PLAYER_ROLE == 2) 
@@ -266,6 +273,7 @@ module.exports = class Game {
         if(this._ball.position.y <= this._ball.scale.x*2) {
             this._ball.position.y = this._ball.scale.x*2;
             this._gravDY = -(this._gravDY);
+            this._tableSound.play();
         }
         this._gravDY += this._gravSpeedY;
             if(this._gravSpeedZ < 0) {
@@ -424,6 +432,7 @@ module.exports = class Game {
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
         await this._loadTableSound("./../../table_sound/table_sound.mp3");
+        this._addLogMessage("Table sound loaded");
         this._addLogMessage("Table loaded.");
  
         // await this._getPlayerReady();

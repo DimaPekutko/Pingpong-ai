@@ -84,6 +84,7 @@ module.exports = class MultiplayerGame extends Game {
             if(this._ball.position.y <= this._ball.scale.x*2) {
                 this._ball.position.y = this._ball.scale.x*2;
                 this._gravDY = -(this._gravDY);
+                this._tableSound.play();
             }
             this._gravDY += this._gravSpeedY;
             if(this._gravSpeedZ < 0) {

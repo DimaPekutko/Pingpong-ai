@@ -129,8 +129,9 @@ module.exports = class App {
         } else {
             this.currentState.gesturesHistory.push(prediction.gestureName);
         }
-        if (prediction.gestureName == "Fist") {
-            this.currentState.status = "waiting";
+        console.log(prediction.gestureName);
+        if (prediction.gestureName == "Victory") {
+            this.currentState.status = "victory";
         } else {
             this.currentState.status = "tracking";
         }

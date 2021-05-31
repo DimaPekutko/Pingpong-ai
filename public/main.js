@@ -67258,8 +67258,9 @@ module.exports = class App {
         } else {
             this.currentState.gesturesHistory.push(prediction.gestureName);
         }
-        if (prediction.gestureName == "Fist") {
-            this.currentState.status = "waiting";
+        console.log(prediction.gestureName);
+        if (prediction.gestureName == "Victory") {
+            this.currentState.status = "victory";
         } else {
             this.currentState.status = "tracking";
         }
@@ -67296,19 +67297,7 @@ module.exports = class App {
         this.currentState._lastPosY = prediction.landmarks[0][1];
     }
 }
-},{"./Model.js":71,"@tensorflow/tfjs-core":10,"webworkify":67}],70:[function(require,module,exports){
-const {Finger, FingerCurl, FingerDirection, GestureDescription} = require('fingerpose');
-
-let FistGesture = new GestureDescription('Fist'); 
-
-module.exports.FistGesture = FistGesture;
-
-FistGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1);
-FistGesture.addCurl(Finger.Index, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Middle, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
-FistGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
-},{"fingerpose":36}],71:[function(require,module,exports){
+},{"./Model.js":70,"@tensorflow/tfjs-core":10,"webworkify":67}],70:[function(require,module,exports){
 require('@tensorflow/tfjs-backend-webgl'); // handpose does not itself require a backend, so you must explicitly install one.
 require('@tensorflow/tfjs-converter');
 require('@tensorflow/tfjs-core');
@@ -67316,7 +67305,7 @@ require('@tensorflow/tfjs-backend-cpu');
 // tf.ENV.set("WEBGL_CPU_FORWARD", true)
 const handpose = require('@tensorflow-models/handpose');
 const fp = require('fingerpose');
-const {FistGesture} = require("./FistGesture");
+const {VictoryGesture} = require("./VictoryGesture");
 
 module.exports = async (self)=>{
     
@@ -67325,7 +67314,7 @@ module.exports = async (self)=>{
             this.handpose = handpose;
             this.fp = fp;
             this.GE = new fp.GestureEstimator([
-                // FistGesture,
+                // VictoryGesture,
             ]);
         }
         async load() {
@@ -67366,7 +67355,44 @@ module.exports = async (self)=>{
         self.postMessage(prediction);
     });
 }
-},{"./FistGesture":70,"@tensorflow-models/handpose":3,"@tensorflow/tfjs-backend-cpu":7,"@tensorflow/tfjs-backend-webgl":8,"@tensorflow/tfjs-converter":9,"@tensorflow/tfjs-core":10,"fingerpose":36}],72:[function(require,module,exports){
+},{"./VictoryGesture":71,"@tensorflow-models/handpose":3,"@tensorflow/tfjs-backend-cpu":7,"@tensorflow/tfjs-backend-webgl":8,"@tensorflow/tfjs-converter":9,"@tensorflow/tfjs-core":10,"fingerpose":36}],71:[function(require,module,exports){
+const {Finger, FingerCurl, FingerDirection, GestureDescription} = require('fingerpose');
+
+let VictoryGesture = new GestureDescription('Victory'); 
+
+module.exports.VictoryGesture = VictoryGesture;
+
+VictoryGesture.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 0.5);
+VictoryGesture.addCurl(Finger.Thumb, FingerCurl.NoCurl, 0.5);
+VictoryGesture.addDirection(Finger.Thumb, FingerDirection.VerticalUp, 1.0);
+VictoryGesture.addDirection(Finger.Thumb, FingerDirection.DiagonalUpLeft, 1.0);
+
+// index:
+VictoryGesture.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
+VictoryGesture.addDirection(Finger.Index, FingerDirection.VerticalUp, 0.75);
+VictoryGesture.addDirection(Finger.Index, FingerDirection.DiagonalUpLeft, 1.0);
+
+// middle:
+VictoryGesture.addCurl(Finger.Middle, FingerCurl.NoCurl, 1.0);
+VictoryGesture.addDirection(Finger.Middle, FingerDirection.VerticalUp, 1.0);
+VictoryGesture.addDirection(Finger.Middle, FingerDirection.DiagonalUpLeft, 0.75);
+
+// ring:
+VictoryGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
+VictoryGesture.addDirection(Finger.Ring, FingerDirection.VerticalUp, 0.2);
+VictoryGesture.addDirection(Finger.Ring, FingerDirection.DiagonalUpLeft, 1.0);
+VictoryGesture.addDirection(Finger.Ring, FingerDirection.HorizontalLeft, 0.2);
+
+// pinky:
+VictoryGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
+VictoryGesture.addDirection(Finger.Pinky, FingerDirection.VerticalUp, 0.2);
+VictoryGesture.addDirection(Finger.Pinky, FingerDirection.DiagonalUpLeft, 1.0);
+VictoryGesture.addDirection(Finger.Pinky, FingerDirection.HorizontalLeft, 0.2);
+
+// give additional weight to index and ring fingers
+VictoryGesture.setWeight(Finger.Index, 2);
+VictoryGesture.setWeight(Finger.Middle, 2);
+},{"fingerpose":36}],72:[function(require,module,exports){
 const HandRecognition = require("../detection/App");
 const Stats = require("stats.js");
 
@@ -67546,7 +67572,7 @@ module.exports = class Game {
     _getHandPrediction(event) {
         // console.log(event);
         let status = event.status;
-        if(status == "waiting")
+        if(status == "waiting" || status == "no_hand")
             return;
         let handX = event?.x;
         let handY = event?.y;
@@ -67559,6 +67585,13 @@ module.exports = class Game {
                 // this._rocketYOffset = -(handY-this._lastHandCoords[1])/s;
                 if(Math.abs(this._rocketXOffset) < 0.1) {
                     this._rocketXOffset = 0;
+                }
+
+                if(status == "victory") {
+                    console.log("vic");
+                    if(this._PLAYER_ROLE == 1 && this._PLAYER_HAND_LOADED && !this._GAME_START) {
+                        this._spaceDown({keyCode: 32}); // space key code
+                    }
                 }
 
                 if(this._PLAYER_ROLE == 2) 
@@ -67635,6 +67668,7 @@ module.exports = class Game {
         if(this._ball.position.y <= this._ball.scale.x*2) {
             this._ball.position.y = this._ball.scale.x*2;
             this._gravDY = -(this._gravDY);
+            this._tableSound.play();
         }
         this._gravDY += this._gravSpeedY;
             if(this._gravSpeedZ < 0) {
@@ -67771,7 +67805,6 @@ module.exports = class Game {
         });
     }
     _render() {
-        console.log("render");
         this._fpsCounter.begin();
         
         if(!this._GAME_ENDED) {
@@ -67785,9 +67818,7 @@ module.exports = class Game {
 
         this._fpsCounter.end();
 
-        // this._gameLoop = requestAnimationFrame(this._render.bind(this));
         this._renderer.render(this._scene, this._camera);
-        // this._renderer.setAnimationLoop(this._render.bind(this));
     }
     async load(callback, playerRole) {
         this._setPlayerRole(playerRole)
@@ -67796,6 +67827,7 @@ module.exports = class Game {
         await this._loadRocket2("./../../rocket_model/scene.gltf");
         this._addLogMessage("Rockets loaded.");
         await this._loadTableSound("./../../table_sound/table_sound.mp3");
+        this._addLogMessage("Table sound loaded");
         this._addLogMessage("Table loaded.");
  
         // await this._getPlayerReady();
@@ -68003,6 +68035,7 @@ module.exports = class MultiplayerGame extends Game {
             if(this._ball.position.y <= this._ball.scale.x*2) {
                 this._ball.position.y = this._ball.scale.x*2;
                 this._gravDY = -(this._gravDY);
+                this._tableSound.play();
             }
             this._gravDY += this._gravSpeedY;
             if(this._gravSpeedZ < 0) {

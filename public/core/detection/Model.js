@@ -5,7 +5,7 @@ require('@tensorflow/tfjs-backend-cpu');
 // tf.ENV.set("WEBGL_CPU_FORWARD", true)
 const handpose = require('@tensorflow-models/handpose');
 const fp = require('fingerpose');
-const {FistGesture} = require("./FistGesture");
+const {VictoryGesture} = require("./VictoryGesture");
 
 module.exports = async (self)=>{
     
@@ -14,7 +14,7 @@ module.exports = async (self)=>{
             this.handpose = handpose;
             this.fp = fp;
             this.GE = new fp.GestureEstimator([
-                // FistGesture,
+                // VictoryGesture,
             ]);
         }
         async load() {
