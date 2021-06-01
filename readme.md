@@ -51,10 +51,6 @@ npm run debug
 
 Then go to the browser and type localhost:8080
 
-## License
-
-MIT
-
    [Three.js]: <http://threejs.org>
    [Browserify]: <http://browserify.org>
    [Webworkify]: <https://www.npmjs.com/package/webworkify>
