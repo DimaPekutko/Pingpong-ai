@@ -2,7 +2,7 @@
 ## _Javascript ping-pong game using fingerpose_
 
 This is a simple 3d game created in javascript, which uses a human hand as a controller using the fingerpose.js library. 
-##### Available [here] or https://pingpong-ai.herokuapp.com
+##### Available [here] or on https://pingpong-ai.herokuapp.com
 
 - Just open the app
 - Start the game
